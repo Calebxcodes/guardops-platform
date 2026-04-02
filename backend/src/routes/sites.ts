@@ -34,7 +34,7 @@ router.get('/:id', (req: Request, res: Response) => {
     WHERE sh.site_id = ? AND date(sh.start_time) >= date('now', '-7 days')
     ORDER BY sh.start_time DESC LIMIT 20
   `).all(req.params.id)
-  res.json({ ...site, shifts })
+  res.json({ ...(site as any), shifts })
 })
 
 router.post('/', (req: Request, res: Response) => {

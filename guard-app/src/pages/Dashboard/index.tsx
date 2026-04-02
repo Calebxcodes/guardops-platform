@@ -95,7 +95,7 @@ export default function Dashboard() {
             <span className="text-white font-medium">
               {format(new Date(todayShift.start_time), 'h:mm a')} — {format(new Date(todayShift.end_time), 'h:mm a')}
             </span>
-            {estimatedPay && <span className="text-white/40 text-sm ml-auto">${estimatedPay}</span>}
+            {estimatedPay && <span className="text-white/40 text-sm ml-auto">£{estimatedPay}</span>}
           </div>
 
           {/* Address */}

@@ -5,7 +5,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell
 } from 'recharts'
-import { TrendingUp, TrendingDown, DollarSign, Users } from 'lucide-react'
+import { TrendingUp, TrendingDown, PoundSterling, Users } from 'lucide-react'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
 
@@ -49,16 +49,16 @@ export default function Financial() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-5">
           <div className="flex items-center gap-2 text-blue-600 mb-2">
-            <DollarSign size={18} /><span className="text-sm font-medium">Total Revenue</span>
+            <PoundSterling size={18} /><span className="text-sm font-medium">Total Revenue</span>
           </div>
-          <div className="text-2xl font-bold">${Math.round(totalRevenue).toLocaleString()}</div>
+          <div className="text-2xl font-bold">£{Math.round(totalRevenue).toLocaleString('en-GB')}</div>
           <div className="text-xs text-gray-400 mt-1">6-month period</div>
         </div>
         <div className="card p-5">
           <div className="flex items-center gap-2 text-red-500 mb-2">
             <TrendingDown size={18} /><span className="text-sm font-medium">Total Payroll</span>
           </div>
-          <div className="text-2xl font-bold">${Math.round(totalPayroll).toLocaleString()}</div>
+          <div className="text-2xl font-bold">£{Math.round(totalPayroll).toLocaleString('en-GB')}</div>
           <div className="text-xs text-gray-400 mt-1">6-month period</div>
         </div>
         <div className="card p-5">
@@ -66,7 +66,7 @@ export default function Financial() {
             <TrendingUp size={18} /><span className="text-sm font-medium">Total Profit</span>
           </div>
           <div className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            ${Math.round(totalProfit).toLocaleString()}
+            £{Math.round(totalProfit).toLocaleString('en-GB')}
           </div>
           <div className="text-xs text-gray-400 mt-1">{margin}% margin</div>
         </div>
@@ -90,7 +90,7 @@ export default function Financial() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v: number) => `$${v.toLocaleString()}`} />
+              <Tooltip formatter={(v: number) => `£${v.toLocaleString('en-GB')}`} />
               <Legend />
               <Line type="monotone" dataKey="Revenue" stroke="#3b82f6" strokeWidth={2} dot />
               <Line type="monotone" dataKey="Payroll" stroke="#ef4444" strokeWidth={2} dot />
@@ -113,7 +113,7 @@ export default function Financial() {
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number) => `$${Math.round(v).toLocaleString()}`} />
+                  <Tooltip formatter={(v: number) => `£${Math.round(v).toLocaleString('en-GB')}`} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-2 mt-2">
@@ -123,7 +123,7 @@ export default function Financial() {
                       <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                       <span>{c.name}</span>
                     </div>
-                    <span className="font-semibold">${Math.round(c.revenue).toLocaleString()}</span>
+                    <span className="font-semibold">£{Math.round(c.revenue).toLocaleString('en-GB')}</span>
                   </div>
                 ))}
               </div>

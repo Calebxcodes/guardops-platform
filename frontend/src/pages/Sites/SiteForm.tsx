@@ -48,7 +48,7 @@ export default function SiteForm({ site, clients, onSave, onCancel }: Props) {
           <input className="input" type="number" min="1" value={form.guards_required} onChange={e => set('guards_required', parseInt(e.target.value))} />
         </div>
         <div>
-          <label className="label">Hourly Rate ($)</label>
+          <label className="label">Hourly Rate (£)</label>
           <input className="input" type="number" min="0" step="0.5" value={form.hourly_rate} onChange={e => set('hourly_rate', parseFloat(e.target.value))} />
         </div>
       </div>

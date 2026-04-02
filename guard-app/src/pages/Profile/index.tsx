@@ -64,7 +64,7 @@ export default function Profile() {
       {/* Quick stats */}
       <div className="grid grid-cols-3 gap-3">
         <Card className="p-3 text-center">
-          <p className="text-lg font-bold text-white">${guard?.hourly_rate}</p>
+          <p className="text-lg font-bold text-white">£{guard?.hourly_rate}</p>
           <p className="text-white/30 text-xs">/hr</p>
         </Card>
         <Card className="p-3 text-center">
@@ -130,7 +130,7 @@ export default function Profile() {
                   <p className="text-white/30 text-xs">{r.regular_hours + r.overtime_hours}h total</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-green-400 font-semibold">${r.net_pay.toFixed(2)}</p>
+                  <p className="text-green-400 font-semibold">£{r.net_pay.toFixed(2)}</p>
                   <StatusBadge status={r.status} />
                 </div>
               </div>

@@ -81,7 +81,7 @@ export default function GuardForm({ guard, onSave, onCancel }: Props) {
           <input className="input" type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} />
         </div>
         <div>
-          <label className="label">Hourly Rate ($)</label>
+          <label className="label">Hourly Rate (£)</label>
           <input className="input" type="number" min="0" step="0.5" value={form.hourly_rate} onChange={e => set('hourly_rate', parseFloat(e.target.value))} />
         </div>
         <div>

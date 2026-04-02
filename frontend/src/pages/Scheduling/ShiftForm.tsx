@@ -52,7 +52,7 @@ export default function ShiftForm({ initialStart, initialEnd, sites, guards, onS
         <select className="input" value={form.guard_id} onChange={e => set('guard_id', e.target.value)}>
           <option value="">Leave unassigned</option>
           {guards.filter(g => g.status !== 'inactive').map(g => (
-            <option key={g.id} value={g.id}>{g.first_name} {g.last_name} — ${g.hourly_rate}/hr</option>
+            <option key={g.id} value={g.id}>{g.first_name} {g.last_name} — £{g.hourly_rate}/hr</option>
           ))}
         </select>
       </div>
@@ -66,7 +66,7 @@ export default function ShiftForm({ initialStart, initialEnd, sites, guards, onS
           <input className="input" type="datetime-local" required value={form.end_time} onChange={e => set('end_time', e.target.value)} />
         </div>
         <div>
-          <label className="label">Hourly Rate ($)</label>
+          <label className="label">Hourly Rate (£)</label>
           <input className="input" type="number" step="0.5" value={form.hourly_rate} onChange={e => set('hourly_rate', e.target.value)} placeholder="Auto from site" />
         </div>
         <div>

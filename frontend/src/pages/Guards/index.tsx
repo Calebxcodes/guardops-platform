@@ -105,7 +105,7 @@ export default function Guards() {
                   </td>
                   <td className="px-4 py-3"><StatusBadge status={guard.status} /></td>
                   <td className="px-4 py-3"><StatusBadge status={guard.employment_type} /></td>
-                  <td className="px-4 py-3 font-medium">${guard.hourly_rate}/hr</td>
+                  <td className="px-4 py-3 font-medium">£{guard.hourly_rate}/hr</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {guard.skills?.slice(0, 2).map(s => (
@@ -119,7 +119,7 @@ export default function Guards() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       {hasCertExpiringSoon(guard) && (
-                        <AlertTriangle size={14} className="text-yellow-500" title="Certification expiring soon" />
+                        <AlertTriangle size={14} className="text-yellow-500" />
                       )}
                       <span className="text-gray-500">{guard.certifications?.length || 0} certs</span>
                     </div>

@@ -72,7 +72,7 @@ export default function Dashboard() {
           sub={`of ${metrics.total_guards} total`} color="bg-green-500" />
         <KpiCard icon={AlertCircle} label="Uncovered Shifts" value={metrics.uncovered_shifts}
           sub="today" color={metrics.uncovered_shifts > 0 ? "bg-red-500" : "bg-gray-400"} />
-        <KpiCard icon={TrendingUp} label="Revenue (Month)" value={`$${metrics.revenue_this_month.toLocaleString()}`}
+        <KpiCard icon={TrendingUp} label="Revenue (Month)" value={`£${metrics.revenue_this_month.toLocaleString('en-GB')}`}
           sub={`${margin}% margin`} color="bg-blue-500" />
         <KpiCard icon={FileText} label="Pending Timesheets" value={metrics.pending_timesheets}
           sub="awaiting approval" color="bg-yellow-500" />
@@ -90,7 +90,7 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(v: number) => `$${v.toLocaleString()}`} />
+                <Tooltip formatter={(v: number) => `£${v.toLocaleString('en-GB')}`} />
                 <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} dot={false} name="Revenue" />
                 <Line type="monotone" dataKey="payroll" stroke="#ef4444" strokeWidth={2} dot={false} name="Payroll" />
               </LineChart>
@@ -110,7 +110,7 @@ export default function Dashboard() {
               <BarChart data={financial.revenueByClient} layout="vertical">
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
-                <Tooltip formatter={(v: number) => `$${Math.round(v).toLocaleString()}`} />
+                <Tooltip formatter={(v: number) => `£${Math.round(v).toLocaleString('en-GB')}`} />
                 <Bar dataKey="revenue" fill="#3b82f6" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>

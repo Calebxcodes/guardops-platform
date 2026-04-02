@@ -41,7 +41,7 @@ export default function ShiftDetail({ shift, sites, guards, onSave, onDelete, on
 
       <div className="flex items-center justify-between">
         <StatusBadge status={shift.status} />
-        <span className="text-sm text-gray-500">{durationHours}h · ${shift.hourly_rate}/hr</span>
+        <span className="text-sm text-gray-500">{durationHours}h · £{shift.hourly_rate}/hr</span>
       </div>
 
       <form onSubmit={e => { e.preventDefault(); onSave({ ...form, guard_id: form.guard_id || null }) }} className="space-y-4">
@@ -80,7 +80,7 @@ export default function ShiftDetail({ shift, sites, guards, onSave, onDelete, on
             </select>
           </div>
           <div>
-            <label className="label">Hourly Rate ($)</label>
+            <label className="label">Hourly Rate (£)</label>
             <input className="input" type="number" step="0.5" value={form.hourly_rate} onChange={e => set('hourly_rate', parseFloat(e.target.value))} />
           </div>
         </div>

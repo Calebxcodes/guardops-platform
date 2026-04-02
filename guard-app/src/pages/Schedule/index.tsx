@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths } from 'date-fns'
-import { ChevronLeft, ChevronRight, Clock, MapPin, DollarSign } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock, MapPin, PoundSterling } from 'lucide-react'
 import { shiftsApi } from '../../api'
 import { GuardShift } from '../../types'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -127,8 +127,8 @@ export default function Schedule() {
                     </div>
                   )}
                   <div className="flex items-center gap-2 text-white/60">
-                    <DollarSign size={14} className="text-green-400" />
-                    Est. ${estimatePay(shift)} · ${shift.hourly_rate}/hr
+                    <PoundSterling size={14} className="text-green-400" />
+                    Est. £{estimatePay(shift)} · £{shift.hourly_rate}/hr
                   </div>
                 </div>
 

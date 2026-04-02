@@ -3,7 +3,7 @@ import { PayrollRecord } from '../../types'
 import { payrollApi } from '../../api'
 import StatusBadge from '../../components/StatusBadge'
 import { format } from 'date-fns'
-import { Download, RefreshCw, DollarSign, AlertCircle } from 'lucide-react'
+import { Download, RefreshCw, PoundSterling, AlertCircle } from 'lucide-react'
 
 export default function Payroll() {
   const [records, setRecords] = useState<PayrollRecord[]>([])
@@ -102,11 +102,11 @@ export default function Payroll() {
       <div className="grid grid-cols-3 gap-4">
         <div className="card p-4">
           <div className="text-sm text-gray-500">Pending Gross Pay</div>
-          <div className="text-2xl font-bold mt-1">${totalGross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="text-2xl font-bold mt-1">£{totalGross.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         </div>
         <div className="card p-4">
           <div className="text-sm text-gray-500">Pending Net Pay</div>
-          <div className="text-2xl font-bold mt-1">${totalNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="text-2xl font-bold mt-1">£{totalNet.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         </div>
         <div className="card p-4">
           <div className="text-sm text-gray-500">Total Records</div>
@@ -146,10 +146,10 @@ export default function Payroll() {
                 <td className="px-4 py-3 text-right">
                   {r.overtime_hours > 0 ? <span className="text-orange-600">{r.overtime_hours}h</span> : '—'}
                 </td>
-                <td className="px-4 py-3 text-right">${r.regular_pay.toFixed(2)}</td>
-                <td className="px-4 py-3 text-right">${r.overtime_pay.toFixed(2)}</td>
-                <td className="px-4 py-3 text-right text-red-500">-${r.deductions.toFixed(2)}</td>
-                <td className="px-4 py-3 text-right font-semibold">${r.net_pay.toFixed(2)}</td>
+                <td className="px-4 py-3 text-right">£{r.regular_pay.toFixed(2)}</td>
+                <td className="px-4 py-3 text-right">£{r.overtime_pay.toFixed(2)}</td>
+                <td className="px-4 py-3 text-right text-red-500">-£{r.deductions.toFixed(2)}</td>
+                <td className="px-4 py-3 text-right font-semibold">£{r.net_pay.toFixed(2)}</td>
                 <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                 <td className="px-4 py-3">
                   {r.status === 'pending' && (
@@ -157,7 +157,7 @@ export default function Payroll() {
                       className="text-sm text-blue-600 hover:underline flex items-center gap-1"
                       onClick={() => markPaid(r.id)}
                     >
-                      <DollarSign size={13} /> Mark Paid
+                      <PoundSterling size={13} /> Mark Paid
                     </button>
                   )}
                 </td>

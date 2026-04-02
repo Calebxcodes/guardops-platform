@@ -25,8 +25,10 @@ export default function TabBar() {
               isActive ? 'text-brand-400' : 'text-white/40 hover:text-white/70'
             )}
           >
-            <Icon size={22} strokeWidth={isActive => isActive ? 2.5 : 1.8} />
-            <span className="text-[10px] font-medium">{label}</span>
+            {({ isActive }) => <>
+              <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
+              <span className="text-[10px] font-medium">{label}</span>
+            </>}
           </NavLink>
         ))}
       </div>

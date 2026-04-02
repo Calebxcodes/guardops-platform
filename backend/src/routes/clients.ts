@@ -21,7 +21,7 @@ router.get('/:id', (req: Request, res: Response) => {
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id)
   if (!client) return res.status(404).json({ error: 'Client not found' })
   const sites = db.prepare('SELECT * FROM sites WHERE client_id = ? AND active = 1').all(req.params.id)
-  res.json({ ...client, sites })
+  res.json({ ...(client as any), sites })
 })
 
 router.post('/', (req: Request, res: Response) => {

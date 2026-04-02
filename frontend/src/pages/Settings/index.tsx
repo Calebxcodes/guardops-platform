@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Shield, Clock, DollarSign, Bell } from 'lucide-react'
 
 export default function Settings() {
-  const [company, setCompany] = useState({ name: 'GuardOps Security', email: 'admin@guardops.com', phone: '555-0000', timezone: 'America/Chicago', currency: 'USD' })
+  const [company, setCompany] = useState({ name: 'GuardOps Security', email: 'admin@guardops.com', phone: '555-0000', timezone: 'Europe/London', currency: 'GBP' })
   const [payroll, setPayroll] = useState({ frequency: 'bi-weekly', overtime_threshold: 40, overtime_multiplier: 1.5, tax_rate: 10 })
   const [scheduling, setScheduling] = useState({ max_hours_day: 12, max_hours_week: 60, min_break_hours: 8, max_consecutive_days: 6 })
   const [saved, setSaved] = useState(false)
@@ -38,10 +38,10 @@ export default function Settings() {
           <div>
             <label className="label">Timezone</label>
             <select className="input" value={company.timezone} onChange={e => setCompany(c => ({ ...c, timezone: e.target.value }))}>
-              <option value="America/New_York">Eastern (ET)</option>
-              <option value="America/Chicago">Central (CT)</option>
-              <option value="America/Denver">Mountain (MT)</option>
-              <option value="America/Los_Angeles">Pacific (PT)</option>
+              <option value="Europe/London">London (GMT/BST)</option>
+              <option value="Europe/Manchester">Manchester (GMT/BST)</option>
+              <option value="Europe/Edinburgh">Edinburgh (GMT/BST)</option>
+              <option value="Europe/Dublin">Dublin (GMT/IST)</option>
             </select>
           </div>
         </div>
