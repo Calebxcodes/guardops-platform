@@ -1,0 +1,14 @@
+{
+  "name": "security-guard-crm",
+  "private": true,
+  "workspaces": ["frontend", "backend", "guard-app"],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\" \"npm run dev --workspace=guard-app\"",
+    "dev:crm": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
+    "dev:guard": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=guard-app\"",
+    "build:all": "npm run build --workspace=frontend && npm run build --workspace=guard-app"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
