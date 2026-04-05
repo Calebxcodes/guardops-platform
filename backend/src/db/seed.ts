@@ -104,24 +104,29 @@ export async function seed() {
 
   const today = new Date()
   const ds = today.toISOString().split('T')[0]
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
+  const ds1 = tomorrow.toISOString().split('T')[0]
 
-  await insertShift(s1, g1, `${ds}T21:00:00`, `${ds}T03:00:00`, 'active',    16.50, 'Friday night — main door')
-  await insertShift(s1, g8, `${ds}T21:00:00`, `${ds}T03:00:00`, 'active',    16.50, 'Friday night — side door')
-  await insertShift(s2, g2, `${ds}T20:30:00`, `${ds}T04:00:00`, 'active',    16.50, 'Friday night — front entrance')
-  await insertShift(s2, g6, `${ds}T20:30:00`, `${ds}T04:00:00`, 'active',    16.50, 'Friday night — floor patrol')
-  await insertShift(s3, g4, `${ds}T08:00:00`, `${ds}T20:00:00`, 'completed', 14.00, 'Day shift — retail')
-  await insertShift(s4, g7, `${ds}T07:00:00`, `${ds}T19:00:00`, 'assigned',  15.00, 'Corporate Monday')
-  await insertShift(s2, null, `${ds}T20:30:00`, `${ds}T04:00:00`, 'unassigned', 16.50, 'URGENT: 3rd officer needed at Prism tonight')
+  // Overnight shifts: end_time is next calendar day
+  await insertShift(s1, g1, `${ds}T21:00:00`,  `${ds1}T03:00:00`, 'active',    16.50, 'Friday night — main door')
+  await insertShift(s1, g8, `${ds}T21:00:00`,  `${ds1}T03:00:00`, 'active',    16.50, 'Friday night — side door')
+  await insertShift(s2, g2, `${ds}T20:30:00`,  `${ds1}T04:00:00`, 'active',    16.50, 'Friday night — front entrance')
+  await insertShift(s2, g6, `${ds}T20:30:00`,  `${ds1}T04:00:00`, 'active',    16.50, 'Friday night — floor patrol')
+  await insertShift(s3, g4, `${ds}T08:00:00`,  `${ds}T20:00:00`,  'completed', 14.00, 'Day shift — retail')
+  await insertShift(s4, g7, `${ds}T07:00:00`,  `${ds}T19:00:00`,  'assigned',  15.00, 'Corporate Monday')
+  await insertShift(s2, null, `${ds}T20:30:00`, `${ds1}T04:00:00`, 'unassigned', 16.50, 'URGENT: 3rd officer needed at Prism tonight')
 
   for (let i = 1; i <= 14; i++) {
     const d = new Date(today); d.setDate(d.getDate() - i)
     const pd = d.toISOString().split('T')[0]
-    await insertShift(s1, g1, `${pd}T21:00:00`, `${pd}T03:00:00`, 'completed', 16.50, '')
-    await insertShift(s2, g2, `${pd}T20:30:00`, `${pd}T04:00:00`, 'completed', 16.50, '')
-    await insertShift(s3, g4, `${pd}T08:00:00`, `${pd}T20:00:00`, 'completed', 14.00, '')
+    const nd = new Date(d); nd.setDate(d.getDate() + 1)
+    const pd1 = nd.toISOString().split('T')[0]
+    await insertShift(s1, g1, `${pd}T21:00:00`, `${pd1}T03:00:00`, 'completed', 16.50, '')
+    await insertShift(s2, g2, `${pd}T20:30:00`, `${pd1}T04:00:00`, 'completed', 16.50, '')
+    await insertShift(s3, g4, `${pd}T08:00:00`, `${pd}T20:00:00`,  'completed', 14.00, '')
     if (i <= 7) {
-      await insertShift(s1, g8, `${pd}T21:00:00`, `${pd}T03:00:00`, 'completed', 16.50, '')
-      await insertShift(s2, g6, `${pd}T20:30:00`, `${pd}T04:00:00`, 'completed', 16.50, '')
+      await insertShift(s1, g8, `${pd}T21:00:00`, `${pd1}T03:00:00`, 'completed', 16.50, '')
+      await insertShift(s2, g6, `${pd}T20:30:00`, `${pd1}T04:00:00`, 'completed', 16.50, '')
     }
   }
 

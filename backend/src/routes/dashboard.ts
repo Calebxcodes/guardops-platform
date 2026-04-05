@@ -3,6 +3,16 @@ import { query } from '../db/schema'
 
 const router = Router()
 
+// Shift duration helper: handles overnight shifts correctly
+const SHIFT_HOURS = `
+  GREATEST(0,
+    EXTRACT(EPOCH FROM (
+      CASE WHEN end_time < start_time THEN end_time + INTERVAL '1 day' ELSE end_time END
+      - start_time
+    )) / 3600
+  )
+`
+
 router.get('/metrics', async (req: Request, res: Response) => {
   const [
     { rows: [{ cnt: guardsOnDuty }] },
@@ -21,9 +31,10 @@ router.get('/metrics', async (req: Request, res: Response) => {
     query(`SELECT COUNT(*)::int as cnt FROM shifts WHERE start_time::date = CURRENT_DATE AND status != 'cancelled'`),
     query(`SELECT COUNT(*)::int as cnt FROM timesheets WHERE status IN ('draft','submitted')`),
     query(`
-      SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (end_time - start_time)) / 3600 * hourly_rate), 0) as revenue
+      SELECT COALESCE(SUM(${SHIFT_HOURS} * hourly_rate), 0) as revenue
       FROM shifts
-      WHERE status IN ('completed','active') AND TO_CHAR(start_time, 'YYYY-MM') = TO_CHAR(NOW(), 'YYYY-MM')
+      WHERE status IN ('completed','active')
+        AND TO_CHAR(start_time, 'YYYY-MM') = TO_CHAR(NOW(), 'YYYY-MM')
     `),
     query(`
       SELECT COALESCE(SUM(gross_pay), 0) as cost FROM payroll_records
@@ -35,8 +46,7 @@ router.get('/metrics', async (req: Request, res: Response) => {
       LEFT JOIN sites s ON s.id = sh.site_id
       LEFT JOIN guards g ON g.id = sh.guard_id
       WHERE sh.start_time::date = CURRENT_DATE AND sh.status != 'cancelled'
-      ORDER BY sh.start_time ASC
-      LIMIT 15
+      ORDER BY sh.start_time ASC LIMIT 15
     `),
     query(`
       SELECT i.*, s.name as site_name, g.first_name, g.last_name
@@ -69,14 +79,14 @@ router.get('/financial', async (req: Request, res: Response) => {
   ] = await Promise.all([
     query(`
       SELECT TO_CHAR(start_time, 'YYYY-MM') as month,
-        COALESCE(SUM(EXTRACT(EPOCH FROM (end_time - start_time)) / 3600 * hourly_rate), 0) as revenue,
+        COALESCE(SUM(${SHIFT_HOURS} * hourly_rate), 0) as revenue,
         COUNT(*)::int as shift_count
       FROM shifts WHERE status IN ('completed','active')
-      AND start_time >= NOW() - INTERVAL '6 months'
+        AND start_time >= NOW() - INTERVAL '6 months'
       GROUP BY month ORDER BY month
     `),
     query(`
-      SELECT c.name, COALESCE(SUM(EXTRACT(EPOCH FROM (sh.end_time - sh.start_time)) / 3600 * sh.hourly_rate), 0) as revenue
+      SELECT c.name, COALESCE(SUM(${SHIFT_HOURS} * sh.hourly_rate), 0) as revenue
       FROM shifts sh
       JOIN sites s ON s.id = sh.site_id
       JOIN clients c ON c.id = s.client_id
@@ -90,9 +100,10 @@ router.get('/financial', async (req: Request, res: Response) => {
     `),
     query(`
       SELECT g.first_name || ' ' || g.last_name as name,
-        COALESCE(SUM(EXTRACT(EPOCH FROM (sh.end_time - sh.start_time)) / 3600), 0) as hours_worked
+        COALESCE(SUM(${SHIFT_HOURS}), 0) as hours_worked
       FROM guards g
-      LEFT JOIN shifts sh ON sh.guard_id = g.id AND sh.status IN ('completed','active')
+      LEFT JOIN shifts sh ON sh.guard_id = g.id
+        AND sh.status IN ('completed','active')
         AND sh.start_time >= NOW() - INTERVAL '30 days'
       WHERE g.active = 1
       GROUP BY g.id, g.first_name, g.last_name ORDER BY hours_worked DESC LIMIT 8
