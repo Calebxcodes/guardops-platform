@@ -1,10 +1,11 @@
 import { Pool } from 'pg'
 
+// Railway internal network is secure; only use SSL for external managed DB URLs
+const useSSL = process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('.railway.internal')
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL
-    ? { rejectUnauthorized: false }
-    : false,
+  ssl: useSSL ? { rejectUnauthorized: false } : false,
 })
 
 export async function query(text: string, params?: any[]) {
