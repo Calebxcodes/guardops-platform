@@ -1,11 +1,12 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, MapPin, Calendar, ClipboardList,
   DollarSign, BarChart2, AlertTriangle, Settings, Shield,
-  Menu, X, ShieldCheck, ExternalLink
+  Menu, X, ShieldCheck, ExternalLink, LogOut
 } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
+import { useAuthStore } from '../store/authStore'
 
 const nav = [
   { to: '/',           label: 'Dashboard',      icon: LayoutDashboard, end: true },
@@ -23,6 +24,13 @@ const nav = [
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const { admin, logout } = useAuthStore()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -72,12 +80,21 @@ export default function Layout() {
         {/* Footer */}
         <div className="px-4 py-3 border-t border-gray-800">
           {sidebarOpen ? (
-            <div className="text-xs text-gray-500">
-              <div className="font-medium text-gray-300">Admin</div>
-              <div>admin@secureedge.co.uk</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs text-gray-500 min-w-0">
+                <div className="font-medium text-gray-300 truncate">{admin?.name || 'Admin'}</div>
+                <div className="truncate">{admin?.email}</div>
+              </div>
+              <button onClick={handleLogout} title="Sign out"
+                className="text-gray-500 hover:text-red-400 transition-colors shrink-0">
+                <LogOut size={16} />
+              </button>
             </div>
           ) : (
-            <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold">A</div>
+            <button onClick={handleLogout} title="Sign out"
+              className="w-7 h-7 bg-blue-600 hover:bg-red-600 rounded-full flex items-center justify-center text-xs font-bold transition-colors">
+              A
+            </button>
           )}
         </div>
       </aside>

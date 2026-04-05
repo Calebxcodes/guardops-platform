@@ -1,5 +1,6 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
+import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Guards from './pages/Guards'
 import Sites from './pages/Sites'
@@ -12,16 +13,23 @@ import Settings from './pages/Settings'
 import Compliance from './pages/Compliance'
 import ClientPortalAdmin from './pages/ClientPortal'
 import PortalView from './pages/ClientPortal/PortalView'
+import { useAuthStore } from './store/authStore'
+
+function PrivateRoute({ children }: { children: React.ReactNode }) {
+  const token = useAuthStore(s => s.token)
+  return token ? <>{children}</> : <Navigate to="/login" replace />
+}
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public client portal — no auth needed */}
+        {/* Public routes */}
+        <Route path="/login" element={<Login />} />
         <Route path="/portal/:token" element={<PortalView />} />
 
-        {/* Admin CRM */}
-        <Route path="/" element={<Layout />}>
+        {/* Protected admin CRM */}
+        <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<Dashboard />} />
           <Route path="guards" element={<Guards />} />
           <Route path="sites" element={<Sites />} />

@@ -6,6 +6,26 @@ const api = axios.create({
     : '/api'
 })
 
+// Attach admin token to every request
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('admin_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+// Auto logout on 401
+api.interceptors.response.use(
+  r => r,
+  err => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('admin_token')
+      localStorage.removeItem('admin_user')
+      window.location.href = '/login'
+    }
+    return Promise.reject(err)
+  }
+)
+
 export const guardsApi = {
   list:   ()              => api.get('/guards').then(r => r.data),
   get:    (id: number)    => api.get(`/guards/${id}`).then(r => r.data),
@@ -68,6 +88,12 @@ export const incidentsApi = {
 export const complianceApi = {
   sia:   ()              => api.get('/compliance/sia').then(r => r.data),
   audit: (siteId: number) => api.get(`/compliance/audit/${siteId}`).then(r => r.data),
+}
+
+export const adminAuthApi = {
+  login: (email: string, password: string) =>
+    api.post('/admin/auth/login', { email, password }).then(r => r.data),
+  me: () => api.get('/admin/auth/me').then(r => r.data),
 }
 
 export const portalApi = {
