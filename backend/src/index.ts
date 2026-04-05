@@ -38,7 +38,7 @@ app.use(cors({
     if (origin.includes('localhost')) return callback(null, true)   // local dev
     if (origin.endsWith('.vercel.app')) return callback(null, true) // all Vercel previews + prod
     if (explicitOrigins.includes(origin)) return callback(null, true)
-    callback(new Error(`CORS: origin ${origin} not allowed`))
+    callback(null, false) // silently block — browser will reject, no 500
   },
   credentials: true,
 }))
