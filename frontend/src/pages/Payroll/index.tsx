@@ -60,31 +60,31 @@ export default function Payroll() {
   const totalNet = records.filter(r => r.status !== 'paid').reduce((s, r) => s + r.net_pay, 0)
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Payroll</h1>
-          <p className="text-gray-500 text-sm mt-1">Generate from approved timesheets</p>
+          <h1 className="text-xl sm:text-2xl font-bold">Payroll</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Generate from approved timesheets</p>
         </div>
-        <button className="btn-secondary flex items-center gap-2" onClick={exportCsv}>
-          <Download size={16} /> Export CSV
+        <button className="btn-secondary flex items-center gap-1.5 text-sm" onClick={exportCsv}>
+          <Download size={15} /><span className="hidden sm:inline">Export CSV</span><span className="sm:hidden">Export</span>
         </button>
       </div>
 
       {/* Generate Payroll Panel */}
-      <div className="card p-5">
+      <div className="card p-4 sm:p-5">
         <h2 className="font-semibold mb-4">Generate Payroll Period</h2>
-        <div className="flex items-end gap-3">
-          <div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+          <div className="flex-1">
             <label className="label">Period Start</label>
             <input className="input" type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} />
           </div>
-          <div>
+          <div className="flex-1">
             <label className="label">Period End</label>
             <input className="input" type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} />
           </div>
-          <button className="btn-primary flex items-center gap-2" onClick={generate} disabled={generating}>
-            <RefreshCw size={16} className={generating ? 'animate-spin' : ''} />
+          <button className="btn-primary flex items-center justify-center gap-2" onClick={generate} disabled={generating}>
+            <RefreshCw size={15} className={generating ? 'animate-spin' : ''} />
             {generating ? 'Generating...' : 'Generate Payroll'}
           </button>
         </div>
@@ -99,23 +99,23 @@ export default function Payroll() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="card p-4">
           <div className="text-sm text-gray-500">Pending Gross Pay</div>
-          <div className="text-2xl font-bold mt-1">£{totalGross.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="text-xl sm:text-2xl font-bold mt-1">£{totalGross.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         </div>
         <div className="card p-4">
           <div className="text-sm text-gray-500">Pending Net Pay</div>
-          <div className="text-2xl font-bold mt-1">£{totalNet.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="text-xl sm:text-2xl font-bold mt-1">£{totalNet.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         </div>
         <div className="card p-4">
           <div className="text-sm text-gray-500">Total Records</div>
-          <div className="text-2xl font-bold mt-1">{records.length}</div>
+          <div className="text-xl sm:text-2xl font-bold mt-1">{records.length}</div>
         </div>
       </div>
 
       {/* Records Table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>

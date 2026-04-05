@@ -99,11 +99,11 @@ export default function Scheduling() {
   ).length
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-4 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Scheduling</h1>
-          <p className="text-gray-500 text-sm mt-1">Click any slot to create a shift · Click a shift to edit</p>
+          <h1 className="text-xl sm:text-2xl font-bold">Scheduling</h1>
+          <p className="text-gray-500 text-sm mt-0.5 hidden sm:block">Click any slot to create a shift · Click a shift to edit</p>
         </div>
         {uncoveredToday > 0 && (
           <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">
@@ -130,7 +130,7 @@ export default function Scheduling() {
       )}
 
       {/* Calendar */}
-      <div className="card p-4" style={{ height: 'calc(100vh - 240px)' }}>
+      <div className="card p-2 sm:p-4" style={{ height: 'calc(100vh - 220px)', minHeight: 400 }}>
         <Calendar
           localizer={localizer}
           events={events}

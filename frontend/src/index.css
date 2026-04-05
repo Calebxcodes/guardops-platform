@@ -57,3 +57,17 @@
 .rbc-off-range-bg {
   @apply bg-gray-50;
 }
+
+/* Mobile drawer slide-in */
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Safe-area bottom padding for mobile notches */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

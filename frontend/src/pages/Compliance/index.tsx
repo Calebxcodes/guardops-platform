@@ -69,18 +69,18 @@ export default function Compliance() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">SIA Compliance</h1>
-          <p className="text-gray-500 text-sm mt-1">Licence tracking and compliance overview</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">SIA Compliance</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Licence tracking and compliance overview</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={load} className="btn-secondary flex items-center gap-2 text-sm">
-            <RefreshCw size={14} /> Refresh
+          <button onClick={load} className="btn-secondary flex items-center gap-1.5 text-sm">
+            <RefreshCw size={14} /><span className="hidden sm:inline">Refresh</span>
           </button>
-          <button onClick={exportCSV} className="btn-secondary flex items-center gap-2 text-sm">
-            <Download size={14} /> Export CSV
+          <button onClick={exportCSV} className="btn-secondary flex items-center gap-1.5 text-sm">
+            <Download size={14} /><span className="hidden sm:inline">Export CSV</span><span className="sm:hidden">Export</span>
           </button>
         </div>
       </div>
@@ -145,7 +145,7 @@ export default function Compliance() {
       </div>
 
       {/* Officers table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         {loading ? (
           <div className="p-8 text-center text-gray-400">Loading compliance data...</div>
         ) : (

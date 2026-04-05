@@ -46,34 +46,34 @@ export default function Timesheets() {
   const submittedCount = timesheets.filter(t => t.status === 'submitted').length
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">Timesheets</h1>
-          <p className="text-gray-500 text-sm mt-1">{submittedCount} pending approval</p>
+          <h1 className="text-xl sm:text-2xl font-bold">Timesheets</h1>
+          <p className="text-gray-500 text-sm mt-0.5">{submittedCount} pending approval</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {selected.size > 0 && (
-            <button className="btn-primary flex items-center gap-2" onClick={bulkApprove}>
-              <CheckSquare size={16} /> Approve {selected.size} Selected
+            <button className="btn-primary flex items-center gap-1.5 text-sm" onClick={bulkApprove}>
+              <CheckSquare size={15} /> Approve {selected.size}
             </button>
           )}
-          <button className="btn-secondary flex items-center gap-2" onClick={selectAll}>
-            Select Submitted
+          <button className="btn-secondary text-sm" onClick={selectAll}>
+            <span className="hidden sm:inline">Select Submitted</span><span className="sm:hidden">Select</span>
           </button>
-          <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm(true)}>
-            <Plus size={16} /> New Entry
+          <button className="btn-primary flex items-center gap-1.5 text-sm" onClick={() => setShowForm(true)}>
+            <Plus size={15} /><span className="hidden sm:inline">New Entry</span><span className="sm:hidden">New</span>
           </button>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3">
-        <div className="flex bg-gray-100 rounded-lg p-1">
+      <div className="overflow-x-auto pb-1">
+        <div className="flex bg-gray-100 rounded-lg p-1 w-max">
           {['', 'draft', 'submitted', 'approved', 'rejected'].map(s => (
             <button
               key={s}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${statusFilter === s ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize whitespace-nowrap ${statusFilter === s ? 'bg-white shadow-sm' : 'text-gray-600'}`}
               onClick={() => setStatusFilter(s)}
             >
               {s || 'All'}
@@ -83,7 +83,7 @@ export default function Timesheets() {
       </div>
 
       {/* Table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>

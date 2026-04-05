@@ -43,41 +43,41 @@ export default function Sites() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Sites & Clients</h1>
-          <p className="text-gray-500 text-sm mt-1">{sites.length} sites across {clients.length} clients</p>
+          <h1 className="text-xl sm:text-2xl font-bold">Sites & Clients</h1>
+          <p className="text-gray-500 text-sm mt-0.5">{sites.length} sites · {clients.length} clients</p>
         </div>
-        <div className="flex gap-2">
-          <button className="btn-secondary flex items-center gap-2" onClick={() => { setEditingClient(null); setShowClientForm(true) }}>
-            <Plus size={16} /> Add Client
+        <div className="flex gap-2 shrink-0">
+          <button className="btn-secondary flex items-center gap-1.5 text-sm" onClick={() => { setEditingClient(null); setShowClientForm(true) }}>
+            <Plus size={15} /><span className="hidden sm:inline">Add Client</span><span className="sm:hidden">Client</span>
           </button>
-          <button className="btn-primary flex items-center gap-2" onClick={() => { setEditingSite(null); setShowSiteForm(true) }}>
-            <Plus size={16} /> Add Site
+          <button className="btn-primary flex items-center gap-1.5 text-sm" onClick={() => { setEditingSite(null); setShowSiteForm(true) }}>
+            <Plus size={15} /><span className="hidden sm:inline">Add Site</span><span className="sm:hidden">Site</span>
           </button>
         </div>
       </div>
 
       {/* Tabs + Search */}
-      <div className="flex items-center gap-4">
-        <div className="flex bg-gray-100 rounded-lg p-1">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="flex bg-gray-100 rounded-lg p-1 self-start">
           <button
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'sites' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'sites' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
             onClick={() => setView('sites')}
           >
-            <MapPin size={14} className="inline mr-1" />Sites ({sites.length})
+            <MapPin size={13} className="inline mr-1" />Sites ({sites.length})
           </button>
           <button
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'clients' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'clients' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
             onClick={() => setView('clients')}
           >
-            <Building2 size={14} className="inline mr-1" />Clients ({clients.length})
+            <Building2 size={13} className="inline mr-1" />Clients ({clients.length})
           </button>
         </div>
-        <div className="relative flex-1 max-w-sm">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input className="input pl-9" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+        <div className="relative flex-1 sm:max-w-sm">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input className="input pl-9 text-sm" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
 

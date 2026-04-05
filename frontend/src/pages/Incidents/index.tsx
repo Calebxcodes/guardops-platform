@@ -89,14 +89,14 @@ export default function Incidents() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Incidents</h1>
-          <p className="text-gray-500 text-sm mt-1">{openIncidents} open · {incidents.length} total</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Incidents</h1>
+          <p className="text-gray-500 text-sm mt-0.5">{openIncidents} open · {incidents.length} total</p>
         </div>
-        <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm(true)}>
-          <Plus size={16} /> Report Incident
+        <button className="btn-primary flex items-center gap-1.5 text-sm" onClick={() => setShowForm(true)}>
+          <Plus size={15} /><span className="hidden sm:inline">Report Incident</span><span className="sm:hidden">Report</span>
         </button>
       </div>
 
@@ -110,7 +110,7 @@ export default function Incidents() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6" style={{ minHeight: 500 }}>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6" style={{ minHeight: 400 }}>
         {/* Incident list */}
         <div className="lg:col-span-2 card overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
@@ -292,7 +292,7 @@ export default function Incidents() {
       {showForm && (
         <Modal title="Report New Incident" onClose={() => setShowForm(false)}>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="label">Site *</label>
                 <select className="input" required value={form.site_id} onChange={e => set('site_id', e.target.value)}>
