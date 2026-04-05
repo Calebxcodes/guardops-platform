@@ -26,6 +26,9 @@ import clientPortalRouter from './routes/clientPortal'
 const app = express()
 const PORT = process.env.PORT || 3001
 
+// Trust Railway / Vercel reverse proxy so rate-limiter sees real client IPs
+app.set('trust proxy', 1)
+
 // ── CORS ──────────────────────────────────────────────────────────────────
 const explicitOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) ?? []
 
