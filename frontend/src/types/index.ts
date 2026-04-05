@@ -124,6 +124,8 @@ export interface Incident {
   type: string
   severity: 'minor' | 'major' | 'critical'
   description?: string
+  ai_report?: string
+  bodycam?: number
   resolved: number
   resolved_at?: string
   created_at: string

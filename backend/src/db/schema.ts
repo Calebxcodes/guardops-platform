@@ -176,8 +176,27 @@ function initSchema(db: Database.Database) {
       type TEXT NOT NULL,
       severity TEXT DEFAULT 'minor',
       description TEXT,
+      ai_report TEXT,
+      bodycam INTEGER DEFAULT 0,
       resolved INTEGER DEFAULT 0,
       resolved_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS client_portal_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER REFERENCES clients(id),
+      token TEXT UNIQUE NOT NULL,
+      label TEXT,
+      active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now'))
     );
   `)

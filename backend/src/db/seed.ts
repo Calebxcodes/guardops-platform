@@ -3,7 +3,6 @@ import bcrypt from 'bcryptjs'
 
 const db = getDb()
 
-// Clear existing data
 db.exec(`
   DELETE FROM messages;
   DELETE FROM checkpoint_checkins;
@@ -19,148 +18,160 @@ db.exec(`
   DELETE FROM clients;
 `)
 
-// Clients
+// ── UK Clients ──────────────────────────────────────────────────────────
 const insertClient = db.prepare(`
   INSERT INTO clients (name, contact_name, contact_email, contact_phone, address, notes)
   VALUES (?, ?, ?, ?, ?, ?)
 `)
-const c1 = insertClient.run('Nexus Shopping Mall', 'Sarah Johnson', 'sarah@nexusmall.com', '555-0101', '100 Mall Drive, Springfield, IL 62701', 'Premium client - 24/7 coverage required')
-const c2 = insertClient.run('Downtown Tower Corp', 'Mike Chen', 'mike@downtowntower.com', '555-0102', '200 Business Ave, Chicago, IL 60601', 'Office hours coverage + night watchman')
-const c3 = insertClient.run('Riverside Casino', 'Linda Park', 'linda@riversidecasino.com', '555-0103', '300 River Rd, Joliet, IL 60432', 'Armed guards required - high security')
-const c4 = insertClient.run('Metro Hospital', 'Dr. James White', 'jwhite@metrohospital.org', '555-0104', '400 Health Blvd, Peoria, IL 61602', 'Hospital environment - patient sensitivity training needed')
+const c1 = insertClient.run('Grand Events Ltd',    'Rachel Davies', 'rachel@grandevents.co.uk',  '0121 400 1234', '14 Broad St, Birmingham B1 2HF',    'Weekend nightclub coverage — Fri/Sat 20:00–04:00')
+const c2 = insertClient.run('Prism Entertainment', 'Tom Walsh',     'tom@prismnight.co.uk',      '0121 400 5678', '7 Hurst St, Birmingham B5 4TD',     'High volume venue — 3 door supervisors minimum')
+const c3 = insertClient.run('Bullring Management', 'Lisa Patel',    'l.patel@bullring.co.uk',    '0121 600 6000', 'Bullring, Birmingham B5 4BU',       'Retail park — daytime security Mon–Sun 08:00–20:00')
+const c4 = insertClient.run('NovaTech Ltd',        'Mark Spencer',  'mark.s@novatech.co.uk',     '0121 200 3456', '1 Colmore Row, Birmingham B3 2BJ',  'Corporate — 1 officer on reception Mon–Fri 07:00–19:00')
 
-// Sites
+// ── UK Sites ────────────────────────────────────────────────────────────
 const insertSite = db.prepare(`
   INSERT INTO sites (client_id, name, address, lat, lng, requirements, post_orders, guards_required, hourly_rate)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `)
-const s1 = insertSite.run(c1.lastInsertRowid, 'Nexus Mall - Main Entrance', '100 Mall Drive, Springfield, IL', 39.7817, -89.6501, 'Unarmed, crowd control certified', 'Monitor main entrance, patrol every 2 hours, report suspicious activity', 2, 45)
-const s2 = insertSite.run(c1.lastInsertRowid, 'Nexus Mall - Parking Lot', '100 Mall Drive (Parking), Springfield, IL', 39.7818, -89.6502, 'Driving license, CCTV monitoring', 'Patrol parking areas, respond to vehicle incidents', 1, 38)
-const s3 = insertSite.run(c2.lastInsertRowid, 'Downtown Tower - Lobby', '200 Business Ave, Chicago, IL', 41.8781, -87.6298, 'Unarmed, professional appearance', 'Visitor sign-in, access control, rounds every hour', 1, 42)
-const s4 = insertSite.run(c3.lastInsertRowid, 'Riverside Casino - Floor', '300 River Rd, Joliet, IL', 41.5250, -88.0817, 'Armed (FOID required), background check', 'Casino floor patrol, surveillance monitoring, handle disputes', 4, 65)
-const s5 = insertSite.run(c4.lastInsertRowid, 'Metro Hospital - ER Entrance', '400 Health Blvd, Peoria, IL', 40.6936, -89.5890, 'De-escalation training, first aid certified', 'ER access control, handle agitated patients, coordinate with staff', 2, 48)
+const s1 = insertSite.run(c1.lastInsertRowid, 'The Grand Venue',       '14 Broad St, Birmingham B1 2HF',    52.4796, -1.9086, 'SIA Door Supervisor licence required', 'Monitor main entrance, ID checks, no entry to those refused by management, patrol every 30 min', 2, 16.50)
+const s2 = insertSite.run(c2.lastInsertRowid, 'Prism Nightclub',        '7 Hurst St, Birmingham B5 4TD',     52.4745, -1.8994, 'SIA Door Supervisor licence required', 'Capacity 600 — enforce one-in-one-out after 23:00, no re-entry policy, radio check every hour',   3, 16.50)
+const s3 = insertSite.run(c3.lastInsertRowid, 'Bullring Retail Park',   'Bullring, Birmingham B5 4BU',       52.4774, -1.8952, 'SIA Security Guard licence required',  'Patrol retail areas, shoplifting prevention, CCTV monitoring, first aid trained preferred',       1, 14.00)
+const s4 = insertSite.run(c4.lastInsertRowid, 'NovaTech HQ — Reception','1 Colmore Row, Birmingham B3 2BJ',  52.4838, -1.8966, 'SIA Security Guard licence, smart presentation', 'Visitor sign-in, access control, deliveries log, escalate to facilities for building issues',  1, 15.00)
 
-// Guards
+// ── UK Officers with SIA certs ──────────────────────────────────────────
 const insertGuard = db.prepare(`
   INSERT INTO guards (first_name, last_name, email, phone, employment_type, status, hourly_rate, certifications, skills)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `)
-const g1 = insertGuard.run('Marcus', 'Williams', 'marcus.w@guardops.com', '555-1001', 'full-time', 'on-duty', 18,
-  JSON.stringify([{name:'Security Guard License', expiry:'2025-12-31'},{name:'First Aid/CPR', expiry:'2025-06-30'}]),
-  JSON.stringify(['Unarmed', 'Crowd Control', 'CCTV']))
-const g2 = insertGuard.run('Priya', 'Patel', 'priya.p@guardops.com', '555-1002', 'full-time', 'on-duty', 20,
-  JSON.stringify([{name:'Security Guard License', expiry:'2026-03-15'},{name:'FOID Card', expiry:'2026-01-01'},{name:'Armed Guard Permit', expiry:'2025-09-30'}]),
-  JSON.stringify(['Armed', 'Unarmed', 'Surveillance']))
-const g3 = insertGuard.run('Derek', 'Thompson', 'derek.t@guardops.com', '555-1003', 'full-time', 'off-duty', 17,
-  JSON.stringify([{name:'Security Guard License', expiry:'2025-08-20'},{name:'De-escalation Training', expiry:'2025-11-15'}]),
-  JSON.stringify(['Unarmed', 'De-escalation', 'Patient Care']))
-const g4 = insertGuard.run('Aisha', 'Rahman', 'aisha.r@guardops.com', '555-1004', 'part-time', 'off-duty', 16,
-  JSON.stringify([{name:'Security Guard License', expiry:'2026-02-28'}]),
-  JSON.stringify(['Unarmed', 'Customer Service']))
-const g5 = insertGuard.run('Carlos', 'Mendez', 'carlos.m@guardops.com', '555-1005', 'full-time', 'on-duty', 19,
-  JSON.stringify([{name:'Security Guard License', expiry:'2025-10-31'},{name:'FOID Card', expiry:'2025-07-15'},{name:'Armed Guard Permit', expiry:'2025-07-15'}]),
-  JSON.stringify(['Armed', 'Casino Security', 'Surveillance']))
-const g6 = insertGuard.run('Tanya', 'Brooks', 'tanya.b@guardops.com', '555-1006', 'full-time', 'off-duty', 17,
-  JSON.stringify([{name:'Security Guard License', expiry:'2026-01-20'},{name:'First Aid/CPR', expiry:'2026-04-10'}]),
-  JSON.stringify(['Unarmed', 'Crowd Control', 'Event Security']))
-const g7 = insertGuard.run('James', 'O\'Brien', 'james.o@guardops.com', '555-1007', 'on-call', 'off-duty', 15,
-  JSON.stringify([{name:'Security Guard License', expiry:'2025-05-31'}]),
-  JSON.stringify(['Unarmed']))
-const g8 = insertGuard.run('Fatima', 'Hassan', 'fatima.h@guardops.com', '555-1008', 'full-time', 'on-duty', 18,
-  JSON.stringify([{name:'Security Guard License', expiry:'2026-06-30'},{name:'De-escalation Training', expiry:'2026-03-01'}]),
-  JSON.stringify(['Unarmed', 'De-escalation', 'First Aid']))
+const g1 = insertGuard.run('Marcus',  'Williams',   'marcus.w@secureedge.co.uk',  '07700 900142', 'full-time',  'on-duty',  14.00,
+  JSON.stringify([{name:'SIA Door Supervisor',      expiry:'2025-09-15'},{name:'First Aid at Work', expiry:'2026-06-30'}]),
+  JSON.stringify(['Door Supervisor','Crowd Control','First Aid']))
+const g2 = insertGuard.run('Priya',   'Sharma',     'priya.s@secureedge.co.uk',   '07700 900218', 'full-time',  'on-duty',  14.00,
+  JSON.stringify([{name:'SIA Door Supervisor',      expiry:'2026-03-22'},{name:'CCTV Operator',     expiry:'2026-11-01'}]),
+  JSON.stringify(['Door Supervisor','CCTV','Conflict Resolution']))
+const g3 = insertGuard.run('Deon',    'Campbell',   'deon.c@secureedge.co.uk',    '07700 900374', 'full-time',  'off-duty', 14.00,
+  JSON.stringify([{name:'SIA Door Supervisor',      expiry:'2026-07-11'}]),
+  JSON.stringify(['Door Supervisor','Event Security']))
+const g4 = insertGuard.run('Sarah',   'Mitchell',   'sarah.m@secureedge.co.uk',   '07700 900451', 'full-time',  'on-duty',  13.00,
+  JSON.stringify([{name:'SIA Security Guard',       expiry:'2025-11-30'},{name:'First Aid at Work', expiry:'2025-09-01'}]),
+  JSON.stringify(['Security Guard','Retail Security','CCTV']))
+const g5 = insertGuard.run('Jason',   'Okafor',     'jason.o@secureedge.co.uk',   '07700 900583', 'part-time',  'off-duty', 13.00,
+  JSON.stringify([{name:'SIA Door Supervisor',      expiry:'2026-01-05'}]),
+  JSON.stringify(['Door Supervisor']))
+const g6 = insertGuard.run('Amira',   'Hassan',     'amira.h@secureedge.co.uk',   '07700 900627', 'full-time',  'on-duty',  14.00,
+  JSON.stringify([{name:'SIA Door Supervisor',      expiry:'2025-08-02'}]),
+  JSON.stringify(['Door Supervisor','Conflict Resolution']))
+const g7 = insertGuard.run('Tyler',   'Booth',      'tyler.b@secureedge.co.uk',   '07700 900714', 'on-call',    'off-duty', 13.00,
+  JSON.stringify([{name:'SIA Security Guard',       expiry:'2026-05-19'}]),
+  JSON.stringify(['Security Guard']))
+const g8 = insertGuard.run('Fatima',  'Al-Rashid',  'fatima.a@secureedge.co.uk',  '07700 900809', 'full-time',  'on-duty',  14.00,
+  JSON.stringify([{name:'SIA Door Supervisor',      expiry:'2025-12-08'},{name:'First Aid at Work', expiry:'2026-03-15'}]),
+  JSON.stringify(['Door Supervisor','First Aid','Conflict Resolution']))
 
-// Shifts (mix of past, present, future)
+// ── Shifts ──────────────────────────────────────────────────────────────
 const insertShift = db.prepare(`
   INSERT INTO shifts (site_id, guard_id, start_time, end_time, status, hourly_rate, notes)
   VALUES (?, ?, ?, ?, ?, ?, ?)
 `)
-// Today's shifts
 const today = new Date()
-const todayStr = today.toISOString().split('T')[0]
+const ds    = today.toISOString().split('T')[0]
 
-insertShift.run(s1.lastInsertRowid, g1.lastInsertRowid, `${todayStr}T06:00:00`, `${todayStr}T14:00:00`, 'active', 45, 'Morning shift - main entrance')
-insertShift.run(s1.lastInsertRowid, g6.lastInsertRowid, `${todayStr}T14:00:00`, `${todayStr}T22:00:00`, 'assigned', 45, 'Afternoon shift - main entrance')
-insertShift.run(s2.lastInsertRowid, g4.lastInsertRowid, `${todayStr}T08:00:00`, `${todayStr}T16:00:00`, 'active', 38, 'Parking lot day shift')
-insertShift.run(s3.lastInsertRowid, g3.lastInsertRowid, `${todayStr}T09:00:00`, `${todayStr}T17:00:00`, 'active', 42, 'Lobby day shift')
-insertShift.run(s4.lastInsertRowid, g2.lastInsertRowid, `${todayStr}T18:00:00`, `${todayStr}T02:00:00`, 'assigned', 65, 'Casino evening shift')
-insertShift.run(s4.lastInsertRowid, g5.lastInsertRowid, `${todayStr}T18:00:00`, `${todayStr}T02:00:00`, 'assigned', 65, 'Casino evening shift')
-insertShift.run(s5.lastInsertRowid, g8.lastInsertRowid, `${todayStr}T07:00:00`, `${todayStr}T15:00:00`, 'active', 48, 'ER morning shift')
-// Uncovered shift
-insertShift.run(s4.lastInsertRowid, null, `${todayStr}T06:00:00`, `${todayStr}T14:00:00`, 'unassigned', 65, 'URGENT: Casino morning shift needs cover')
-insertShift.run(s5.lastInsertRowid, null, `${todayStr}T15:00:00`, `${todayStr}T23:00:00`, 'unassigned', 48, 'ER afternoon shift - needs assignment')
+// Tonight's active shifts
+insertShift.run(s1.lastInsertRowid, g1.lastInsertRowid, `${ds}T21:00:00`, `${ds}T03:00:00`, 'active',   16.50, 'Friday night — main door')
+insertShift.run(s1.lastInsertRowid, g8.lastInsertRowid, `${ds}T21:00:00`, `${ds}T03:00:00`, 'active',   16.50, 'Friday night — side door')
+insertShift.run(s2.lastInsertRowid, g2.lastInsertRowid, `${ds}T20:30:00`, `${ds}T04:00:00`, 'active',   16.50, 'Friday night — front entrance')
+insertShift.run(s2.lastInsertRowid, g6.lastInsertRowid, `${ds}T20:30:00`, `${ds}T04:00:00`, 'active',   16.50, 'Friday night — floor patrol')
+insertShift.run(s3.lastInsertRowid, g4.lastInsertRowid, `${ds}T08:00:00`, `${ds}T20:00:00`, 'completed',14.00, 'Day shift — retail')
+insertShift.run(s4.lastInsertRowid, g7.lastInsertRowid, `${ds}T07:00:00`, `${ds}T19:00:00`, 'assigned', 15.00, 'Corporate Monday')
+// Understaffed — Prism needs 3 but only 2 assigned
+// Uncovered — NovaTech tomorrow
+insertShift.run(s2.lastInsertRowid, null, `${ds}T20:30:00`, `${ds}T04:00:00`, 'unassigned', 16.50, 'URGENT: 3rd officer needed at Prism tonight')
 
-// Past shifts for timesheet data
+// Past 14 days for charts
 for (let i = 1; i <= 14; i++) {
-  const d = new Date(today)
-  d.setDate(d.getDate() - i)
-  const ds = d.toISOString().split('T')[0]
-  insertShift.run(s1.lastInsertRowid, g1.lastInsertRowid, `${ds}T06:00:00`, `${ds}T14:00:00`, 'completed', 45, '')
-  insertShift.run(s3.lastInsertRowid, g3.lastInsertRowid, `${ds}T09:00:00`, `${ds}T17:00:00`, 'completed', 42, '')
+  const d  = new Date(today); d.setDate(d.getDate() - i)
+  const pd = d.toISOString().split('T')[0]
+  insertShift.run(s1.lastInsertRowid, g1.lastInsertRowid, `${pd}T21:00:00`, `${pd}T03:00:00`, 'completed', 16.50, '')
+  insertShift.run(s2.lastInsertRowid, g2.lastInsertRowid, `${pd}T20:30:00`, `${pd}T04:00:00`, 'completed', 16.50, '')
+  insertShift.run(s3.lastInsertRowid, g4.lastInsertRowid, `${pd}T08:00:00`, `${pd}T20:00:00`, 'completed', 14.00, '')
   if (i <= 7) {
-    insertShift.run(s4.lastInsertRowid, g5.lastInsertRowid, `${ds}T18:00:00`, `${ds}T02:00:00`, 'completed', 65, '')
-    insertShift.run(s5.lastInsertRowid, g8.lastInsertRowid, `${ds}T07:00:00`, `${ds}T15:00:00`, 'completed', 48, '')
+    insertShift.run(s1.lastInsertRowid, g8.lastInsertRowid, `${pd}T21:00:00`, `${pd}T03:00:00`, 'completed', 16.50, '')
+    insertShift.run(s2.lastInsertRowid, g6.lastInsertRowid, `${pd}T20:30:00`, `${pd}T04:00:00`, 'completed', 16.50, '')
   }
 }
 
-// Timesheets
+// ── Timesheets ───────────────────────────────────────────────────────────
 const insertTs = db.prepare(`
   INSERT INTO timesheets (guard_id, period_start, period_end, regular_hours, overtime_hours, total_hours, status, source)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `)
-const periodStart = new Date(today); periodStart.setDate(today.getDate() - 14)
-const periodMid = new Date(today); periodMid.setDate(today.getDate() - 7)
-const ps = periodStart.toISOString().split('T')[0]
-const pm = periodMid.toISOString().split('T')[0]
+const ps = new Date(today); ps.setDate(today.getDate() - 14)
+const pm = new Date(today); pm.setDate(today.getDate() - 7)
+const psStr = ps.toISOString().split('T')[0]
+const pmStr = pm.toISOString().split('T')[0]
 
-insertTs.run(g1.lastInsertRowid, ps, pm, 40, 2, 42, 'approved', 'mobile')
-insertTs.run(g3.lastInsertRowid, ps, pm, 40, 0, 40, 'approved', 'mobile')
-insertTs.run(g5.lastInsertRowid, ps, pm, 40, 4, 44, 'approved', 'mobile')
-insertTs.run(g8.lastInsertRowid, ps, pm, 38, 0, 38, 'approved', 'mobile')
-insertTs.run(g1.lastInsertRowid, pm, todayStr, 32, 0, 32, 'submitted', 'mobile')
-insertTs.run(g3.lastInsertRowid, pm, todayStr, 36, 0, 36, 'submitted', 'mobile')
-insertTs.run(g5.lastInsertRowid, pm, todayStr, 40, 8, 48, 'submitted', 'mobile')
-insertTs.run(g8.lastInsertRowid, pm, todayStr, 38, 2, 40, 'draft', 'manual')
-insertTs.run(g2.lastInsertRowid, pm, todayStr, 24, 0, 24, 'draft', 'mobile')
-insertTs.run(g4.lastInsertRowid, pm, todayStr, 20, 0, 20, 'submitted', 'manual')
+insertTs.run(g1.lastInsertRowid, psStr, pmStr, 40, 4, 44, 'approved', 'mobile')
+insertTs.run(g2.lastInsertRowid, psStr, pmStr, 40, 0, 40, 'approved', 'mobile')
+insertTs.run(g4.lastInsertRowid, psStr, pmStr, 38, 0, 38, 'approved', 'mobile')
+insertTs.run(g8.lastInsertRowid, psStr, pmStr, 40, 2, 42, 'approved', 'mobile')
+insertTs.run(g1.lastInsertRowid, pmStr, ds,    36, 0, 36, 'submitted','mobile')
+insertTs.run(g2.lastInsertRowid, pmStr, ds,    32, 0, 32, 'submitted','mobile')
+insertTs.run(g4.lastInsertRowid, pmStr, ds,    38, 0, 38, 'submitted','manual')
+insertTs.run(g6.lastInsertRowid, pmStr, ds,    40, 4, 44, 'draft',    'mobile')
+insertTs.run(g8.lastInsertRowid, pmStr, ds,    36, 0, 36, 'submitted','mobile')
 
-// Payroll records (previous period)
+// ── Payroll ──────────────────────────────────────────────────────────────
 const insertPay = db.prepare(`
-  INSERT INTO payroll_records (guard_id, period_start, period_end, regular_hours, overtime_hours, regular_pay, overtime_pay, bonuses, deductions, gross_pay, net_pay, status, processed_at)
+  INSERT INTO payroll_records (guard_id, period_start, period_end, regular_hours, overtime_hours,
+    regular_pay, overtime_pay, bonuses, deductions, gross_pay, net_pay, status, processed_at)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `)
-insertPay.run(g1.lastInsertRowid, ps, pm, 40, 2, 720, 54, 0, 72, 774, 702, 'paid', new Date(today.getTime() - 5*86400000).toISOString())
-insertPay.run(g3.lastInsertRowid, ps, pm, 40, 0, 680, 0, 0, 68, 680, 612, 'paid', new Date(today.getTime() - 5*86400000).toISOString())
-insertPay.run(g5.lastInsertRowid, ps, pm, 40, 4, 760, 114, 50, 76, 924, 848, 'paid', new Date(today.getTime() - 5*86400000).toISOString())
-insertPay.run(g8.lastInsertRowid, ps, pm, 38, 0, 684, 0, 0, 68, 684, 616, 'paid', new Date(today.getTime() - 5*86400000).toISOString())
+const paid = new Date(today.getTime() - 5 * 86400000).toISOString()
+insertPay.run(g1.lastInsertRowid, psStr, pmStr, 40, 4,  560.00,  84.00, 0,  64.40,  644.00,  579.60, 'paid', paid)
+insertPay.run(g2.lastInsertRowid, psStr, pmStr, 40, 0,  560.00,   0.00, 0,  56.00,  560.00,  504.00, 'paid', paid)
+insertPay.run(g4.lastInsertRowid, psStr, pmStr, 38, 0,  494.00,   0.00, 0,  49.40,  494.00,  444.60, 'paid', paid)
+insertPay.run(g8.lastInsertRowid, psStr, pmStr, 40, 2,  560.00,  42.00, 0,  60.20,  602.00,  541.80, 'paid', paid)
 
-// Incidents
+// ── Incidents ────────────────────────────────────────────────────────────
 const insertInc = db.prepare(`
-  INSERT INTO incidents (site_id, guard_id, shift_id, type, severity, description, resolved)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO incidents (site_id, guard_id, type, severity, description, bodycam, resolved, resolved_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `)
-insertInc.run(s4.lastInsertRowid, g2.lastInsertRowid, null, 'Disturbance', 'minor', 'Patron dispute at gaming tables, resolved without escalation', 1)
-insertInc.run(s1.lastInsertRowid, g1.lastInsertRowid, null, 'Theft Attempt', 'major', 'Shoplifting incident at store #12, suspect detained, police called', 1)
-insertInc.run(s5.lastInsertRowid, g8.lastInsertRowid, null, 'Medical Emergency', 'critical', 'Patient became violent in waiting area, staff assisted', 1)
+insertInc.run(s2.lastInsertRowid, g2.lastInsertRowid, 'Altercation',       'major',
+  'Two patrons refused entry at the main door following a verbal altercation. Both were removed from the queue. Police called as a precaution — reference pending. No injuries. Body cam footage secured.',
+  1, 1, new Date(today.getTime() - 2 * 3600000).toISOString())
+insertInc.run(s1.lastInsertRowid, g1.lastInsertRowid, 'Fake ID',           'minor',
+  'Patron presented a suspected counterfeit driving licence at the main door. Entry refused. Patron left without further incident. Document photographed and handed to management.',
+  0, 1, new Date(today.getTime() - 1 * 3600000).toISOString())
+insertInc.run(s3.lastInsertRowid, g4.lastInsertRowid, 'Shoplifting',       'major',
+  'Individual observed concealing items in clothing in store unit 14. Approached at exit. Items recovered. Store manager and police notified. CCTV footage requested from Bullring control room.',
+  1, 1, new Date(today.getTime() - 5 * 3600000).toISOString())
+insertInc.run(s2.lastInsertRowid, g6.lastInsertRowid, 'Drugs Concern',     'critical',
+  'Patron appeared visibly intoxicated beyond alcohol influence. Removed from premises at 01:05. Police notified, reference number awaited. Full body-cam footage archived and available on request.',
+  1, 0, null)
+insertInc.run(s1.lastInsertRowid, g8.lastInsertRowid, 'Medical Emergency', 'major',
+  'Patron reported feeling unwell at 21:38 near the main entrance. First aid applied — recovery position maintained. Ambulance called, patient transported by own means after assessment. Incident log completed.',
+  0, 1, new Date(today.getTime() - 3 * 3600000).toISOString())
 
-// Guard auth accounts (password = "guard123" for all demo accounts)
-const hash = bcrypt.hashSync('guard123', 10)
+// ── Auth accounts (password: guard123) ──────────────────────────────────
+const hash      = bcrypt.hashSync('guard123', 10)
 const insertAuth = db.prepare('INSERT OR REPLACE INTO guard_auth (guard_id, password_hash) VALUES (?, ?)')
-;[g1, g2, g3, g4, g5, g6, g7, g8].forEach(g => insertAuth.run(g.lastInsertRowid, hash))
+;[g1,g2,g3,g4,g5,g6,g7,g8].forEach(g => insertAuth.run(g.lastInsertRowid, hash))
 
-// Route checkpoints for Nexus Mall
+// ── Route checkpoints — The Grand Venue ────────────────────────────────
 const insertCp = db.prepare('INSERT INTO route_checkpoints (site_id, name, lat, lng, order_num, instructions) VALUES (?, ?, ?, ?, ?, ?)')
-insertCp.run(s1.lastInsertRowid, 'Main Entrance', 39.7817, -89.6501, 1, 'Check all entry doors are secured, verify alarm system active')
-insertCp.run(s1.lastInsertRowid, 'Food Court', 39.7818, -89.6505, 2, 'Patrol food court area, check for loitering')
-insertCp.run(s1.lastInsertRowid, 'Back Loading Dock', 39.7815, -89.6510, 3, 'Verify loading dock doors are locked, no unauthorized vehicles')
-insertCp.run(s1.lastInsertRowid, 'Parking Level 2', 39.7820, -89.6498, 4, 'Drive-through or walk parking areas, check for suspicious vehicles')
+insertCp.run(s1.lastInsertRowid, 'Main Entrance',   52.4796, -1.9086, 1, 'Check all entry doors locked. Verify alarm status.')
+insertCp.run(s1.lastInsertRowid, 'Fire Exit A',     52.4797, -1.9088, 2, 'Ensure fire exit is not propped open. Check for loitering.')
+insertCp.run(s1.lastInsertRowid, 'Bar Area',        52.4795, -1.9082, 3, 'Observe patron behaviour. Note any concerns.')
+insertCp.run(s1.lastInsertRowid, 'VIP Section',     52.4794, -1.9080, 4, 'Check wristbands. No entry without correct wristband.')
+insertCp.run(s1.lastInsertRowid, 'Smoking Area',    52.4798, -1.9090, 5, 'No glass outside. Monitor for anti-social behaviour.')
 
-// Sample messages
+// ── Messages ─────────────────────────────────────────────────────────────
 const insertMsg = db.prepare('INSERT INTO messages (from_guard_id, to_guard_id, body, is_emergency) VALUES (?, ?, ?, ?)')
-insertMsg.run(null, g1.lastInsertRowid, 'Welcome Marcus! Your shift starts at 6 AM tomorrow at Nexus Mall Main Entrance.', 0)
-insertMsg.run(null, g1.lastInsertRowid, 'Reminder: Please complete your patrol checklist every 2 hours.', 0)
-insertMsg.run(g1.lastInsertRowid, 0, 'Manager, the CCTV at door 3 seems to be offline. Should I report to site maintenance?', 0)
+insertMsg.run(null, g1.lastInsertRowid, 'Hi Marcus — your shift at The Grand Venue starts at 21:00 tonight. Report to the duty manager on arrival.', 0)
+insertMsg.run(null, g2.lastInsertRowid, 'Priya — reminder: capacity at Prism is 600. Strict one-in-one-out after 23:00. Radio check every hour.', 0)
+insertMsg.run(g1.lastInsertRowid, null, 'CCTV camera on the side exit appears to be offline. Awaiting confirmation from venue management.', 0)
 
-console.log('Database seeded successfully!')
-console.log(`Guards have login: [email] / password: guard123`)
-console.log(`Clients: 4, Sites: 5, Guards: 8, Shifts: seeded, Timesheets: 10, Payroll: 4, Incidents: 3`)
+console.log('✅ SecureEdge database seeded successfully')
+console.log('   Guard login: [email] / guard123')
+console.log('   Admin login: admin@secureedge.co.uk / admin123')

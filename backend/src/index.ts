@@ -14,6 +14,10 @@ import guardShiftsRouter from './routes/guardShifts'
 import guardTimesheetsRouter from './routes/guardTimesheets'
 import guardMessagesRouter from './routes/guardMessages'
 import guardProfileRouter from './routes/guardProfile'
+import adminAuthRouter, { ensureDefaultAdmin } from './routes/adminAuth'
+import complianceRouter from './routes/compliance'
+import aiReportRouter from './routes/aiReport'
+import clientPortalRouter from './routes/clientPortal'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -36,7 +40,11 @@ if (guardCount === 0) {
   }
 }
 
+// Ensure default admin account exists
+ensureDefaultAdmin()
+
 // Admin/CRM routes
+app.use('/api/admin/auth', adminAuthRouter)
 app.use('/api/guards', guardsRouter)
 app.use('/api/clients', clientsRouter)
 app.use('/api/sites', sitesRouter)
@@ -45,6 +53,9 @@ app.use('/api/timesheets', timesheetsRouter)
 app.use('/api/payroll', payrollRouter)
 app.use('/api/dashboard', dashboardRouter)
 app.use('/api/incidents', incidentsRouter)
+app.use('/api/compliance', complianceRouter)
+app.use('/api/ai', aiReportRouter)
+app.use('/api/portal', clientPortalRouter)
 
 // Guard app routes
 app.use('/api/auth', authRouter)
