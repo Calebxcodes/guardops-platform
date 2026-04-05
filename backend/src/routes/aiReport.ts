@@ -1,12 +1,10 @@
 import { Router, Request, Response } from 'express'
-import { getDb } from '../db/schema'
+import { query } from '../db/schema'
 
 const router = Router()
 
-// Generate AI incident report using Anthropic API
 router.post('/incident/:id', async (req: Request, res: Response) => {
-  const db = getDb()
-  const incident = db.prepare(`
+  const { rows } = await query(`
     SELECT i.*, s.name as site_name, s.address as site_address, s.post_orders,
            g.first_name, g.last_name, g.certifications,
            c.name as client_name
@@ -14,9 +12,10 @@ router.post('/incident/:id', async (req: Request, res: Response) => {
     LEFT JOIN sites s ON s.id = i.site_id
     LEFT JOIN guards g ON g.id = i.guard_id
     LEFT JOIN clients c ON c.id = s.client_id
-    WHERE i.id = ?
-  `).get(req.params.id) as any
+    WHERE i.id = $1
+  `, [req.params.id]) as { rows: any[] }
 
+  const incident = rows[0]
   if (!incident) return res.status(404).json({ error: 'Incident not found' })
 
   const prompt = `You are a professional security operations AI generating a formal incident report for a UK security company, compliant with BS 7499 standards.
@@ -50,9 +49,8 @@ Keep the language formal, factual, and suitable for submission to a client, poli
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
-      // Fallback to template-based report if no API key
       const report = generateTemplateReport(incident)
-      db.prepare('UPDATE incidents SET ai_report = ? WHERE id = ?').run(report, incident.id)
+      await query('UPDATE incidents SET ai_report = $1 WHERE id = $2', [report, incident.id])
       return res.json({ report, source: 'template' })
     }
 
@@ -72,16 +70,12 @@ Keep the language formal, factual, and suitable for submission to a client, poli
 
     const data = await response.json() as any
     const report = data.content?.[0]?.text || generateTemplateReport(incident)
-
-    // Save the generated report back to the incident
-    db.prepare('UPDATE incidents SET ai_report = ? WHERE id = ?').run(report, incident.id)
-
+    await query('UPDATE incidents SET ai_report = $1 WHERE id = $2', [report, incident.id])
     res.json({ report, source: 'ai' })
   } catch (err) {
     console.error('AI report error:', err)
-    // Fallback to template
     const report = generateTemplateReport(incident)
-    db.prepare('UPDATE incidents SET ai_report = ? WHERE id = ?').run(report, incident.id)
+    await query('UPDATE incidents SET ai_report = $1 WHERE id = $2', [report, incident.id])
     res.json({ report, source: 'template' })
   }
 })

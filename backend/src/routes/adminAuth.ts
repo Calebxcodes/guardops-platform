@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
-import { getDb } from '../db/schema'
+import { query } from '../db/schema'
 import jwt from 'jsonwebtoken'
 
 const router = Router()
@@ -23,23 +23,23 @@ export function requireAdmin(req: any, res: Response, next: any) {
   }
 }
 
-// Seed default admin if none exists
-export function ensureDefaultAdmin() {
-  const db = getDb()
-  const count = (db.prepare('SELECT COUNT(*) as c FROM admin_users').get() as any).c
-  if (count === 0) {
-    const hash = bcrypt.hashSync('admin123', 10)
-    db.prepare('INSERT INTO admin_users (name, email, password_hash) VALUES (?, ?, ?)')
-      .run('SecureEdge Admin', 'admin@secureedge.co.uk', hash)
+export async function ensureDefaultAdmin() {
+  const { rows } = await query('SELECT COUNT(*)::int as c FROM admin_users')
+  if (rows[0].c === 0) {
+    const hash = await bcrypt.hash('admin123', 10)
+    await query(
+      'INSERT INTO admin_users (name, email, password_hash) VALUES ($1, $2, $3)',
+      ['SecureEdge Admin', 'admin@secureedge.co.uk', hash]
+    )
     console.log('Default admin created: admin@secureedge.co.uk / admin123')
   }
 }
 
 router.post('/login', async (req: Request, res: Response) => {
-  const db = getDb()
   const { email, password } = req.body
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' })
-  const admin = db.prepare('SELECT * FROM admin_users WHERE email = ?').get(email) as any
+  const { rows } = await query('SELECT * FROM admin_users WHERE email = $1', [email])
+  const admin = rows[0]
   if (!admin) return res.status(401).json({ error: 'Invalid credentials' })
   const valid = await bcrypt.compare(password, admin.password_hash)
   if (!valid) return res.status(401).json({ error: 'Invalid credentials' })
@@ -47,10 +47,9 @@ router.post('/login', async (req: Request, res: Response) => {
   res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email } })
 })
 
-router.get('/me', requireAdmin, (req: any, res: Response) => {
-  const db = getDb()
-  const admin = db.prepare('SELECT id, name, email, created_at FROM admin_users WHERE id = ?').get(req.adminId)
-  res.json(admin)
+router.get('/me', requireAdmin, async (req: any, res: Response) => {
+  const { rows } = await query('SELECT id, name, email, created_at FROM admin_users WHERE id = $1', [req.adminId])
+  res.json(rows[0])
 })
 
 export default router

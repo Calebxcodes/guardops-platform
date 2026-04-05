@@ -1,78 +1,20 @@
-import Database from 'better-sqlite3'
-import path from 'path'
+import { Pool } from 'pg'
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../data/guardops_v2.db')
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL
+    ? { rejectUnauthorized: false }
+    : false,
+})
 
-let db: Database.Database
-
-export function getDb(): Database.Database {
-  if (!db) {
-    const fs = require('fs')
-    const dir = path.dirname(DB_PATH)
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-    db = new Database(DB_PATH)
-    db.pragma('journal_mode = WAL')
-    db.pragma('foreign_keys = ON')
-    initSchema(db)
-  }
-  return db
+export async function query(text: string, params?: any[]) {
+  return pool.query(text, params)
 }
 
-function initSchema(db: Database.Database) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS guard_auth (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      guard_id INTEGER UNIQUE REFERENCES guards(id),
-      password_hash TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS clock_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      guard_id INTEGER REFERENCES guards(id),
-      shift_id INTEGER REFERENCES shifts(id),
-      type TEXT NOT NULL,
-      lat REAL,
-      lng REAL,
-      accuracy REAL,
-      photo_url TEXT,
-      notes TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS route_checkpoints (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      site_id INTEGER REFERENCES sites(id),
-      name TEXT NOT NULL,
-      lat REAL,
-      lng REAL,
-      order_num INTEGER DEFAULT 0,
-      instructions TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS checkpoint_checkins (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      checkpoint_id INTEGER REFERENCES route_checkpoints(id),
-      guard_id INTEGER REFERENCES guards(id),
-      shift_id INTEGER REFERENCES shifts(id),
-      lat REAL,
-      lng REAL,
-      photo_url TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      from_guard_id INTEGER REFERENCES guards(id),
-      to_guard_id INTEGER,
-      is_emergency INTEGER DEFAULT 0,
-      body TEXT NOT NULL,
-      read_at TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
+export async function initSchema() {
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS clients (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       contact_name TEXT,
       contact_email TEXT,
@@ -80,11 +22,11 @@ function initSchema(db: Database.Database) {
       address TEXT,
       notes TEXT,
       active INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS sites (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       client_id INTEGER REFERENCES clients(id),
       name TEXT NOT NULL,
       address TEXT,
@@ -95,11 +37,11 @@ function initSchema(db: Database.Database) {
       guards_required INTEGER DEFAULT 1,
       hourly_rate REAL DEFAULT 0,
       active INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS guards (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
       email TEXT UNIQUE,
@@ -116,24 +58,75 @@ function initSchema(db: Database.Database) {
       notes TEXT,
       avatar_url TEXT,
       active INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS guard_auth (
+      id SERIAL PRIMARY KEY,
+      guard_id INTEGER UNIQUE REFERENCES guards(id),
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS shifts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       site_id INTEGER REFERENCES sites(id),
       guard_id INTEGER REFERENCES guards(id),
-      start_time TEXT NOT NULL,
-      end_time TEXT NOT NULL,
+      start_time TIMESTAMPTZ NOT NULL,
+      end_time TIMESTAMPTZ NOT NULL,
       status TEXT DEFAULT 'unassigned',
       hourly_rate REAL,
       break_minutes INTEGER DEFAULT 30,
       notes TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS clock_events (
+      id SERIAL PRIMARY KEY,
+      guard_id INTEGER REFERENCES guards(id),
+      shift_id INTEGER REFERENCES shifts(id),
+      type TEXT NOT NULL,
+      lat REAL,
+      lng REAL,
+      accuracy REAL,
+      photo_url TEXT,
+      notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS route_checkpoints (
+      id SERIAL PRIMARY KEY,
+      site_id INTEGER REFERENCES sites(id),
+      name TEXT NOT NULL,
+      lat REAL,
+      lng REAL,
+      order_num INTEGER DEFAULT 0,
+      instructions TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS checkpoint_checkins (
+      id SERIAL PRIMARY KEY,
+      checkpoint_id INTEGER REFERENCES route_checkpoints(id),
+      guard_id INTEGER REFERENCES guards(id),
+      shift_id INTEGER REFERENCES shifts(id),
+      lat REAL,
+      lng REAL,
+      photo_url TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS messages (
+      id SERIAL PRIMARY KEY,
+      from_guard_id INTEGER REFERENCES guards(id),
+      to_guard_id INTEGER,
+      is_emergency INTEGER DEFAULT 0,
+      body TEXT NOT NULL,
+      read_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS timesheets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       guard_id INTEGER REFERENCES guards(id),
       shift_id INTEGER REFERENCES shifts(id),
       period_start TEXT NOT NULL,
@@ -145,13 +138,13 @@ function initSchema(db: Database.Database) {
       source TEXT DEFAULT 'manual',
       manager_notes TEXT,
       guard_notes TEXT,
-      submitted_at TEXT,
-      approved_at TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      submitted_at TIMESTAMPTZ,
+      approved_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS payroll_records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       guard_id INTEGER REFERENCES guards(id),
       period_start TEXT NOT NULL,
       period_end TEXT NOT NULL,
@@ -164,12 +157,12 @@ function initSchema(db: Database.Database) {
       gross_pay REAL DEFAULT 0,
       net_pay REAL DEFAULT 0,
       status TEXT DEFAULT 'pending',
-      processed_at TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      processed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS incidents (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       site_id INTEGER REFERENCES sites(id),
       guard_id INTEGER REFERENCES guards(id),
       shift_id INTEGER REFERENCES shifts(id),
@@ -179,25 +172,25 @@ function initSchema(db: Database.Database) {
       ai_report TEXT,
       bodycam INTEGER DEFAULT 0,
       resolved INTEGER DEFAULT 0,
-      resolved_at TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      resolved_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS admin_users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS client_portal_tokens (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       client_id INTEGER REFERENCES clients(id),
       token TEXT UNIQUE NOT NULL,
       label TEXT,
       active INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `)
 }

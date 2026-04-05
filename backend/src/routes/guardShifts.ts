@@ -1,130 +1,113 @@
 import { Router, Response } from 'express'
 import { requireAuth, AuthRequest } from '../middleware/auth'
-import { getDb } from '../db/schema'
+import { query } from '../db/schema'
 
 const router = Router()
 router.use(requireAuth)
 
-// Today's shift
-router.get('/today', (req: AuthRequest, res: Response) => {
-  const db = getDb()
-  const shift = db.prepare(`
+router.get('/today', async (req: AuthRequest, res: Response) => {
+  const { rows } = await query(`
     SELECT sh.*, s.name as site_name, s.address as site_address, s.lat, s.lng,
       s.requirements, s.post_orders, c.name as client_name, c.contact_phone as site_phone
     FROM shifts sh
     JOIN sites s ON s.id = sh.site_id
     JOIN clients c ON c.id = s.client_id
-    WHERE sh.guard_id = ? AND date(sh.start_time) = date('now') AND sh.status != 'cancelled'
+    WHERE sh.guard_id = $1 AND sh.start_time::date = CURRENT_DATE AND sh.status != 'cancelled'
     ORDER BY sh.start_time ASC LIMIT 1
-  `).get(req.guardId)
-  res.json(shift || null)
+  `, [req.guardId])
+  res.json(rows[0] || null)
 })
 
-// Upcoming shifts (next 30 days)
-router.get('/upcoming', (req: AuthRequest, res: Response) => {
-  const db = getDb()
-  const shifts = db.prepare(`
+router.get('/upcoming', async (req: AuthRequest, res: Response) => {
+  const { rows } = await query(`
     SELECT sh.*, s.name as site_name, s.address as site_address,
       c.name as client_name
     FROM shifts sh
     JOIN sites s ON s.id = sh.site_id
     JOIN clients c ON c.id = s.client_id
-    WHERE sh.guard_id = ? AND sh.start_time >= date('now')
-      AND sh.start_time <= date('now', '+30 days') AND sh.status != 'cancelled'
+    WHERE sh.guard_id = $1 AND sh.start_time >= NOW()
+      AND sh.start_time <= NOW() + INTERVAL '30 days' AND sh.status != 'cancelled'
     ORDER BY sh.start_time ASC
-  `).all(req.guardId)
-  res.json(shifts)
+  `, [req.guardId])
+  res.json(rows)
 })
 
-// Shift history
-router.get('/history', (req: AuthRequest, res: Response) => {
-  const db = getDb()
-  const shifts = db.prepare(`
+router.get('/history', async (req: AuthRequest, res: Response) => {
+  const { rows } = await query(`
     SELECT sh.*, s.name as site_name, c.name as client_name
     FROM shifts sh
     JOIN sites s ON s.id = sh.site_id
     JOIN clients c ON c.id = s.client_id
-    WHERE sh.guard_id = ? AND sh.start_time < date('now')
+    WHERE sh.guard_id = $1 AND sh.start_time < NOW()
     ORDER BY sh.start_time DESC LIMIT 30
-  `).all(req.guardId)
-  res.json(shifts)
+  `, [req.guardId])
+  res.json(rows)
 })
 
-// Clock in
-router.post('/clock-in', (req: AuthRequest, res: Response) => {
-  const db = getDb()
+router.post('/clock-in', async (req: AuthRequest, res: Response) => {
   const { shift_id, lat, lng, accuracy, photo_url, notes } = req.body
 
-  // Find shift
-  const shift = db.prepare('SELECT * FROM shifts WHERE id = ? AND guard_id = ?').get(shift_id, req.guardId) as any
+  const { rows: shiftRows } = await query('SELECT * FROM shifts WHERE id = $1 AND guard_id = $2', [shift_id, req.guardId])
+  const shift = shiftRows[0]
   if (!shift) return res.status(404).json({ error: 'Shift not found' })
   if (shift.status === 'active') return res.status(409).json({ error: 'Already clocked in' })
 
-  // Record clock-in event
-  db.prepare(`
+  await query(`
     INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes)
-    VALUES (?, ?, 'clock_in', ?, ?, ?, ?, ?)
-  `).run(req.guardId, shift_id, lat, lng, accuracy, photo_url, notes)
+    VALUES ($1,$2,'clock_in',$3,$4,$5,$6,$7)
+  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes])
 
-  // Update shift and guard status
-  db.prepare("UPDATE shifts SET status = 'active' WHERE id = ?").run(shift_id)
-  db.prepare("UPDATE guards SET status = 'on-duty' WHERE id = ?").run(req.guardId)
+  await query("UPDATE shifts SET status = 'active' WHERE id = $1", [shift_id])
+  await query("UPDATE guards SET status = 'on-duty' WHERE id = $1", [req.guardId])
 
   res.json({ success: true, clocked_in_at: new Date().toISOString() })
 })
 
-// Clock out
-router.post('/clock-out', (req: AuthRequest, res: Response) => {
-  const db = getDb()
+router.post('/clock-out', async (req: AuthRequest, res: Response) => {
   const { shift_id, lat, lng, accuracy, photo_url, notes } = req.body
 
-  const shift = db.prepare('SELECT * FROM shifts WHERE id = ? AND guard_id = ?').get(shift_id, req.guardId) as any
-  if (!shift) return res.status(404).json({ error: 'Shift not found' })
+  const { rows: shiftRows } = await query('SELECT * FROM shifts WHERE id = $1 AND guard_id = $2', [shift_id, req.guardId])
+  if (!shiftRows[0]) return res.status(404).json({ error: 'Shift not found' })
 
-  // Get clock-in time
-  const clockIn = db.prepare(`
+  const { rows: clockInRows } = await query(`
     SELECT created_at FROM clock_events
-    WHERE guard_id = ? AND shift_id = ? AND type = 'clock_in'
+    WHERE guard_id = $1 AND shift_id = $2 AND type = 'clock_in'
     ORDER BY created_at DESC LIMIT 1
-  `).get(req.guardId, shift_id) as any
+  `, [req.guardId, shift_id])
 
-  db.prepare(`
+  await query(`
     INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes)
-    VALUES (?, ?, 'clock_out', ?, ?, ?, ?, ?)
-  `).run(req.guardId, shift_id, lat, lng, accuracy, photo_url, notes)
+    VALUES ($1,$2,'clock_out',$3,$4,$5,$6,$7)
+  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes])
 
-  db.prepare("UPDATE shifts SET status = 'completed' WHERE id = ?").run(shift_id)
-  db.prepare("UPDATE guards SET status = 'off-duty' WHERE id = ?").run(req.guardId)
+  await query("UPDATE shifts SET status = 'completed' WHERE id = $1", [shift_id])
+  await query("UPDATE guards SET status = 'off-duty' WHERE id = $1", [req.guardId])
 
-  // Calculate hours worked
   let hoursWorked = 0
-  if (clockIn) {
-    const ms = new Date().getTime() - new Date(clockIn.created_at).getTime()
+  if (clockInRows[0]) {
+    const ms = new Date().getTime() - new Date(clockInRows[0].created_at).getTime()
     hoursWorked = Math.round((ms / 3600000) * 100) / 100
   }
 
-  // Auto-create draft timesheet
-  const existing = db.prepare('SELECT id FROM timesheets WHERE guard_id = ? AND shift_id = ?').get(req.guardId, shift_id)
-  if (!existing) {
-    const regularHours = Math.min(hoursWorked, 8)
+  const { rows: existingTs } = await query('SELECT id FROM timesheets WHERE guard_id = $1 AND shift_id = $2', [req.guardId, shift_id])
+  if (!existingTs[0]) {
+    const regularHours  = Math.min(hoursWorked, 8)
     const overtimeHours = Math.max(0, hoursWorked - 8)
     const today = new Date().toISOString().split('T')[0]
-    db.prepare(`
+    await query(`
       INSERT INTO timesheets (guard_id, shift_id, period_start, period_end, regular_hours, overtime_hours, total_hours, status, source)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', 'mobile')
-    `).run(req.guardId, shift_id, today, today, regularHours, overtimeHours, hoursWorked)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,'draft','mobile')
+    `, [req.guardId, shift_id, today, today, regularHours, overtimeHours, hoursWorked])
   }
 
   res.json({ success: true, hours_worked: hoursWorked, clocked_out_at: new Date().toISOString() })
 })
 
-// Get clock events for a shift
-router.get('/:shiftId/clock-events', (req: AuthRequest, res: Response) => {
-  const db = getDb()
-  const events = db.prepare(`
-    SELECT * FROM clock_events WHERE shift_id = ? AND guard_id = ? ORDER BY created_at ASC
-  `).all(req.params.shiftId, req.guardId)
-  res.json(events)
+router.get('/:shiftId/clock-events', async (req: AuthRequest, res: Response) => {
+  const { rows } = await query(`
+    SELECT * FROM clock_events WHERE shift_id = $1 AND guard_id = $2 ORDER BY created_at ASC
+  `, [req.params.shiftId, req.guardId])
+  res.json(rows)
 })
 
 export default router
