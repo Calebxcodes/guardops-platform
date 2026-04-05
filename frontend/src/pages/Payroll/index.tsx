@@ -7,6 +7,9 @@ import { Download, RefreshCw, PoundSterling, AlertCircle } from 'lucide-react'
 
 export default function Payroll() {
   const [records, setRecords] = useState<PayrollRecord[]>([])
+  const [total,   setTotal]   = useState(0)
+  const [page,    setPage]    = useState(1)
+  const PAGE_SIZE = 50
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [periodStart, setPeriodStart] = useState('')
@@ -14,8 +17,11 @@ export default function Payroll() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const load = () => payrollApi.list().then(setRecords).finally(() => setLoading(false))
-  useEffect(() => { load() }, [])
+  const load = (p = 1) =>
+    payrollApi.list({ page: p, limit: PAGE_SIZE })
+      .then(r => { setRecords(r.data); setTotal(r.total); setPage(p) })
+      .finally(() => setLoading(false))
+  useEffect(() => { load(1) }, [])
 
   const generate = async () => {
     if (!periodStart || !periodEnd) { setError('Select a period'); return }
@@ -23,7 +29,7 @@ export default function Payroll() {
     try {
       const result = await payrollApi.generate(periodStart, periodEnd)
       setSuccess(`Generated ${result.generated} payroll record(s)`)
-      load()
+      load(1)
     } catch (e: any) {
       setError(e.response?.data?.error || 'Failed to generate payroll')
     } finally {
@@ -34,8 +40,9 @@ export default function Payroll() {
   const markPaid = async (id: number) => {
     if (!confirm('Mark this record as paid?')) return
     await payrollApi.update(id, { status: 'paid' })
-    load()
+    load(page)
   }
+  const totalPages = Math.ceil(total / PAGE_SIZE)
 
   const exportCsv = () => {
     const rows = [
@@ -110,7 +117,7 @@ export default function Payroll() {
         </div>
         <div className="card p-4">
           <div className="text-sm text-gray-500">Total Records</div>
-          <div className="text-xl sm:text-2xl font-bold mt-1">{records.length}</div>
+          <div className="text-xl sm:text-2xl font-bold mt-1">{total}</div>
         </div>
       </div>
 
@@ -165,6 +172,17 @@ export default function Payroll() {
             ))}
           </tbody>
         </table>
+        {totalPages > 1 && (
+          <div className="px-4 py-3 border-t flex items-center justify-between text-sm text-gray-500">
+            <span>Page {page} of {totalPages} · {total} records</span>
+            <div className="flex gap-1">
+              <button disabled={page <= 1} onClick={() => load(page - 1)}
+                className="px-3 py-1 rounded border hover:bg-gray-50 disabled:opacity-30 text-xs">Prev</button>
+              <button disabled={page >= totalPages} onClick={() => load(page + 1)}
+                className="px-3 py-1 rounded border hover:bg-gray-50 disabled:opacity-30 text-xs">Next</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

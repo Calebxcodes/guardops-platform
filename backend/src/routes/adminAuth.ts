@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import { query } from '../db/schema'
 import jwt from 'jsonwebtoken'
+import { sendPasswordReset } from '../services/email'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET || 'secureedge-admin-secret-change-in-prod'
@@ -50,6 +52,44 @@ router.post('/login', async (req: Request, res: Response) => {
 router.get('/me', requireAdmin, async (req: any, res: Response) => {
   const { rows } = await query('SELECT id, name, email, created_at FROM admin_users WHERE id = $1', [req.adminId])
   res.json(rows[0])
+})
+
+router.post('/forgot-password', async (req: Request, res: Response) => {
+  const { email } = req.body
+  if (!email) return res.status(400).json({ error: 'Email required' })
+
+  const { rows: adminRows } = await query('SELECT id FROM admin_users WHERE email = $1', [email])
+  // Always return 200 to prevent email enumeration
+  if (!adminRows[0]) return res.json({ message: 'If that email is registered, a reset link has been sent.' })
+
+  const token = crypto.randomBytes(32).toString('hex')
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+
+  await query(`UPDATE password_reset_tokens SET used = 1 WHERE user_type = 'admin' AND user_id = $1`, [adminRows[0].id])
+  await query(
+    `INSERT INTO password_reset_tokens (user_type, user_id, token, expires_at) VALUES ('admin', $1, $2, $3)`,
+    [adminRows[0].id, token, expiresAt.toISOString()]
+  )
+
+  await sendPasswordReset(email, token, 'admin')
+  res.json({ message: 'If that email is registered, a reset link has been sent.' })
+})
+
+router.post('/reset-password', async (req: Request, res: Response) => {
+  const { token, new_password } = req.body
+  if (!token || !new_password) return res.status(400).json({ error: 'Token and new password required' })
+  if (new_password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
+
+  const { rows } = await query(`
+    SELECT * FROM password_reset_tokens
+    WHERE token = $1 AND user_type = 'admin' AND used = 0 AND expires_at > NOW()
+  `, [token])
+  if (!rows[0]) return res.status(400).json({ error: 'Invalid or expired reset link' })
+
+  const hash = await bcrypt.hash(new_password, 10)
+  await query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [hash, rows[0].user_id])
+  await query(`UPDATE password_reset_tokens SET used = 1 WHERE id = $1`, [rows[0].id])
+  res.json({ message: 'Password updated successfully' })
 })
 
 export default router

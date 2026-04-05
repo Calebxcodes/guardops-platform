@@ -66,7 +66,7 @@ export const timesheetsApi = {
 }
 
 export const payrollApi = {
-  list:     ()                           => api.get('/payroll').then(r => r.data),
+  list:     (params?: any)               => api.get('/payroll', { params }).then(r => r.data),
   generate: (period_start: string, period_end: string) =>
     api.post('/payroll/generate', { period_start, period_end }).then(r => r.data),
   update:   (id: number, data: any)      => api.put(`/payroll/${id}`, data).then(r => r.data),
@@ -78,7 +78,7 @@ export const dashboardApi = {
 }
 
 export const incidentsApi = {
-  list:       ()                => api.get('/incidents').then(r => r.data),
+  list:       (params?: any)    => api.get('/incidents', { params }).then(r => r.data),
   get:        (id: number)      => api.get(`/incidents/${id}`).then(r => r.data),
   create:     (data: any)       => api.post('/incidents', data).then(r => r.data),
   resolve:    (id: number)      => api.put(`/incidents/${id}/resolve`, {}).then(r => r.data),
@@ -94,6 +94,10 @@ export const adminAuthApi = {
   login: (email: string, password: string) =>
     api.post('/admin/auth/login', { email, password }).then(r => r.data),
   me: () => api.get('/admin/auth/me').then(r => r.data),
+  forgotPassword: (email: string) =>
+    api.post('/admin/auth/forgot-password', { email }).then(r => r.data),
+  resetPassword: (token: string, new_password: string) =>
+    api.post('/admin/auth/reset-password', { token, new_password }).then(r => r.data),
 }
 
 export const portalApi = {

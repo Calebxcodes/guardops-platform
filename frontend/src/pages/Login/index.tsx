@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Shield, Eye, EyeOff, AlertCircle, Loader } from 'lucide-react'
 import { adminAuthApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
@@ -79,6 +79,12 @@ export default function Login() {
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl py-3.5 flex items-center justify-center gap-2 transition-colors mt-2">
             {loading ? <><Loader size={18} className="animate-spin" /> Signing in...</> : 'Sign In'}
           </button>
+
+          <div className="text-center pt-1">
+            <Link to="/forgot-password" className="text-blue-400 hover:text-blue-300 text-sm transition-colors">
+              Forgot your password?
+            </Link>
+          </div>
         </form>
       </div>
     </div>

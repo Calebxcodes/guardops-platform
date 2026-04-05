@@ -3,6 +3,7 @@ import 'express-async-errors'
 import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import rateLimit from 'express-rate-limit'
+import cron from 'node-cron'
 import { initSchema, query } from './db/schema'
 import { seed } from './db/seed'
 import guardsRouter from './routes/guards'
@@ -19,6 +20,7 @@ import guardTimesheetsRouter from './routes/guardTimesheets'
 import guardMessagesRouter from './routes/guardMessages'
 import guardProfileRouter from './routes/guardProfile'
 import adminAuthRouter, { ensureDefaultAdmin } from './routes/adminAuth'
+import { runDailyAlerts } from './services/alerts'
 import complianceRouter from './routes/compliance'
 import aiReportRouter from './routes/aiReport'
 import clientPortalRouter from './routes/clientPortal'
@@ -106,6 +108,12 @@ async function start() {
   }
 
   await ensureDefaultAdmin()
+
+  // Daily alert cron — runs every day at 08:00 server time
+  cron.schedule('0 8 * * *', () => {
+    runDailyAlerts().catch(e => console.error('[Alerts] cron error:', e))
+  })
+  console.log('Daily alerts cron scheduled (08:00 daily)')
 
   app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`GuardOps API running on port ${PORT}`)

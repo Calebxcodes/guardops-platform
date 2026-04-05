@@ -31,6 +31,10 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 router.post('/', async (req: Request, res: Response) => {
   const { first_name, last_name, email, phone, address, date_of_birth, employment_type, hourly_rate, certifications, skills, bank_account, bank_routing, notes } = req.body
+  if (!first_name?.trim()) return res.status(400).json({ error: 'First name is required' })
+  if (!last_name?.trim())  return res.status(400).json({ error: 'Last name is required' })
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return res.status(400).json({ error: 'Invalid email address' })
   const { rows } = await query(`
     INSERT INTO guards (first_name, last_name, email, phone, address, date_of_birth, employment_type, hourly_rate, certifications, skills, bank_account, bank_routing, notes)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *

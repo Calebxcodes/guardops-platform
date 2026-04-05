@@ -13,6 +13,8 @@ import Settings from './pages/Settings'
 import Compliance from './pages/Compliance'
 import ClientPortalAdmin from './pages/ClientPortal'
 import PortalView from './pages/ClientPortal/PortalView'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import { useAuthStore } from './store/authStore'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -26,6 +28,8 @@ export default function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/portal/:token" element={<PortalView />} />
 
         {/* Protected admin CRM */}

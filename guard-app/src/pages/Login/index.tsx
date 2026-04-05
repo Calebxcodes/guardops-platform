@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Shield, Eye, EyeOff, AlertCircle, Loader } from 'lucide-react'
 import { authApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
@@ -79,7 +79,11 @@ export default function Login() {
           {loading ? <><Loader size={18} className="animate-spin" /> Signing in...</> : 'Sign In'}
         </button>
 
-        <p className="text-center text-white/30 text-sm mt-4">Locked out? Contact your manager.</p>
+        <div className="text-center mt-4">
+          <Link to="/forgot-password" className="text-brand-400 hover:text-brand-300 text-sm transition-colors">
+            Forgot your password?
+          </Link>
+        </div>
       </form>
 
       {/* Demo credentials */}

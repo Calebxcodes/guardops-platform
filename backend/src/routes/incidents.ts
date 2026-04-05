@@ -4,14 +4,20 @@ import { query } from '../db/schema'
 const router = Router()
 
 router.get('/', async (req: Request, res: Response) => {
+  const page  = Math.max(1, parseInt(req.query.page  as string) || 1)
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50))
+  const offset = (page - 1) * limit
+
+  const { rows: [{ total }] } = await query(`SELECT COUNT(*)::int as total FROM incidents`)
   const { rows } = await query(`
     SELECT i.*, s.name as site_name, g.first_name, g.last_name
     FROM incidents i
     LEFT JOIN sites s ON s.id = i.site_id
     LEFT JOIN guards g ON g.id = i.guard_id
     ORDER BY i.created_at DESC
-  `)
-  res.json(rows)
+    LIMIT $1 OFFSET $2
+  `, [limit, offset])
+  res.json({ data: rows, total, page, limit, pages: Math.ceil(total / limit) })
 })
 
 router.get('/:id', async (req: Request, res: Response) => {
@@ -30,6 +36,8 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 router.post('/', async (req: Request, res: Response) => {
   const { site_id, guard_id, shift_id, type, severity, description, bodycam } = req.body
+  if (!site_id) return res.status(400).json({ error: 'site_id is required' })
+  if (!type || !type.trim()) return res.status(400).json({ error: 'Incident type is required' })
   const { rows } = await query(`
     INSERT INTO incidents (site_id, guard_id, shift_id, type, severity, description, bodycam)
     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id

@@ -5,6 +5,11 @@ const router = Router()
 
 router.get('/', async (req: Request, res: Response) => {
   const { status, guard_id } = req.query
+  const page  = Math.max(1, parseInt(req.query.page  as string) || 1)
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50))
+  const offset = (page - 1) * limit
+
+  let countSql = `SELECT COUNT(*)::int as total FROM timesheets t WHERE 1=1`
   let sql = `
     SELECT t.*, g.first_name, g.last_name
     FROM timesheets t
@@ -13,11 +18,13 @@ router.get('/', async (req: Request, res: Response) => {
   `
   const params: any[] = []
   let idx = 1
-  if (status) { sql += ` AND t.status = $${idx++}`; params.push(status) }
-  if (guard_id) { sql += ` AND t.guard_id = $${idx++}`; params.push(guard_id) }
-  sql += ' ORDER BY t.period_start DESC'
-  const { rows } = await query(sql, params)
-  res.json(rows)
+  if (status) { const c = ` AND t.status = $${idx++}`; sql += c; countSql += c; params.push(status) }
+  if (guard_id) { const c = ` AND t.guard_id = $${idx++}`; sql += c; countSql += c; params.push(guard_id) }
+
+  const { rows: [{ total }] } = await query(countSql, params)
+  sql += ` ORDER BY t.period_start DESC LIMIT $${idx++} OFFSET $${idx++}`
+  const { rows } = await query(sql, [...params, limit, offset])
+  res.json({ data: rows, total, page, limit, pages: Math.ceil(total / limit) })
 })
 
 router.get('/:id', async (req: Request, res: Response) => {

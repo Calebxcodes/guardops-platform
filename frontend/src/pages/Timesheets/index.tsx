@@ -10,17 +10,23 @@ import TimesheetDetail from './TimesheetDetail'
 
 export default function Timesheets() {
   const [timesheets, setTimesheets] = useState<Timesheet[]>([])
+  const [total,       setTotal]       = useState(0)
+  const [page,        setPage]        = useState(1)
+  const PAGE_SIZE = 50
   const [statusFilter, setStatusFilter] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [showForm, setShowForm] = useState(false)
   const [viewDetail, setViewDetail] = useState<Timesheet | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const load = () => {
-    timesheetsApi.list(statusFilter ? { status: statusFilter } : {})
-      .then(setTimesheets).finally(() => setLoading(false))
+  const load = (p = 1, filter = statusFilter) => {
+    const params: any = { page: p, limit: PAGE_SIZE }
+    if (filter) params.status = filter
+    timesheetsApi.list(params)
+      .then(r => { setTimesheets(r.data); setTotal(r.total); setPage(p) })
+      .finally(() => setLoading(false))
   }
-  useEffect(() => { load() }, [statusFilter])
+  useEffect(() => { load(1, statusFilter) }, [statusFilter])
 
   const toggleSelect = (id: number) => {
     setSelected(prev => {
@@ -44,6 +50,7 @@ export default function Timesheets() {
   }
 
   const submittedCount = timesheets.filter(t => t.status === 'submitted').length
+  const totalPages = Math.ceil(total / PAGE_SIZE)
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
@@ -140,12 +147,23 @@ export default function Timesheets() {
             ))}
           </tbody>
         </table>
+        {totalPages > 1 && (
+          <div className="px-4 py-3 border-t flex items-center justify-between text-sm text-gray-500">
+            <span>Page {page} of {totalPages} · {total} entries</span>
+            <div className="flex gap-1">
+              <button disabled={page <= 1} onClick={() => load(page - 1)}
+                className="px-3 py-1 rounded border hover:bg-gray-50 disabled:opacity-30 text-xs">Prev</button>
+              <button disabled={page >= totalPages} onClick={() => load(page + 1)}
+                className="px-3 py-1 rounded border hover:bg-gray-50 disabled:opacity-30 text-xs">Next</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {showForm && (
         <Modal title="New Timesheet Entry" onClose={() => setShowForm(false)}>
           <TimesheetForm
-            onSave={async (data) => { await timesheetsApi.create(data); setShowForm(false); load() }}
+            onSave={async (data) => { await timesheetsApi.create(data); setShowForm(false); load(1) }}
             onCancel={() => setShowForm(false)}
           />
         </Modal>
@@ -157,11 +175,11 @@ export default function Timesheets() {
             timesheet={viewDetail}
             onApprove={async () => {
               await timesheetsApi.update(viewDetail.id, { status: 'approved' })
-              setViewDetail(null); load()
+              setViewDetail(null); load(page)
             }}
             onReject={async (notes) => {
               await timesheetsApi.update(viewDetail.id, { status: 'rejected', manager_notes: notes })
-              setViewDetail(null); load()
+              setViewDetail(null); load(page)
             }}
             onClose={() => setViewDetail(null)}
           />

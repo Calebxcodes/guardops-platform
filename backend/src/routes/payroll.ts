@@ -4,13 +4,19 @@ import { query } from '../db/schema'
 const router = Router()
 
 router.get('/', async (req: Request, res: Response) => {
+  const page  = Math.max(1, parseInt(req.query.page  as string) || 1)
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50))
+  const offset = (page - 1) * limit
+
+  const { rows: [{ total }] } = await query(`SELECT COUNT(*)::int as total FROM payroll_records`)
   const { rows } = await query(`
     SELECT p.*, g.first_name, g.last_name, g.hourly_rate
     FROM payroll_records p
     LEFT JOIN guards g ON g.id = p.guard_id
     ORDER BY p.period_start DESC
-  `)
-  res.json(rows)
+    LIMIT $1 OFFSET $2
+  `, [limit, offset])
+  res.json({ data: rows, total, page, limit, pages: Math.ceil(total / limit) })
 })
 
 router.post('/generate', async (req: Request, res: Response) => {
