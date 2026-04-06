@@ -57,7 +57,7 @@ export async function runDailyAlerts() {
 
   await sendAlertEmail(
     ADMIN_ALERT_EMAIL,
-    `SecureEdge Alert: ${lines.length} item(s) require attention`,
+    `Strondis Alert: ${lines.length} item(s) require attention`,
     lines
   )
   console.log(`[Alerts] Sent daily alert with ${lines.length} item(s) to ${ADMIN_ALERT_EMAIL}`)

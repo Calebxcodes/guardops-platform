@@ -36,7 +36,7 @@ export default function Login() {
           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-xl">
             <Shield size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">SecureEdge</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Strondis</h1>
           <p className="text-gray-500 text-sm mt-1">Operations Platform</p>
         </div>
 
@@ -54,7 +54,7 @@ export default function Login() {
             <input
               type="email" required autoComplete="email"
               value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="admin@secureedge.co.uk"
+              placeholder="admin@strondis.com"
               className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
             />
           </div>

@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken'
 import { sendPasswordReset } from '../services/email'
 
 const router = Router()
-const JWT_SECRET = process.env.JWT_SECRET || 'secureedge-admin-secret-change-in-prod'
+const JWT_SECRET = process.env.JWT_SECRET || 'strondis-admin-secret-change-in-prod'
 
 function signAdminToken(id: number, email: string) {
   return jwt.sign({ adminId: id, email, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' })
@@ -31,9 +31,9 @@ export async function ensureDefaultAdmin() {
     const hash = await bcrypt.hash('admin123', 10)
     await query(
       'INSERT INTO admin_users (name, email, password_hash) VALUES ($1, $2, $3)',
-      ['SecureEdge Admin', 'admin@secureedge.co.uk', hash]
+      ['Strondis Admin', 'admin@strondis.com', hash]
     )
-    console.log('Default admin created: admin@secureedge.co.uk / admin123')
+    console.log('Default admin created: admin@strondis.com / admin123')
   }
 }
 

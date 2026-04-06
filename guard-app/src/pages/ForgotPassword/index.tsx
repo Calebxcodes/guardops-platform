@@ -29,7 +29,7 @@ export default function ForgotPassword() {
         <div className="w-20 h-20 bg-brand-900 border-2 border-brand-600 rounded-3xl flex items-center justify-center mb-4 shadow-2xl shadow-brand-900/50">
           <Shield size={40} className="text-brand-400" />
         </div>
-        <h1 className="text-3xl font-bold text-white tracking-tight">SecureEdge</h1>
+        <h1 className="text-3xl font-bold text-white tracking-tight">Strondis</h1>
         <p className="text-white/40 text-sm mt-1">Reset your password</p>
       </div>
 
@@ -58,7 +58,7 @@ export default function ForgotPassword() {
               <input
                 type="email" required autoComplete="email"
                 value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="your.email@secureedge.co.uk"
+                placeholder="your.email@strondis.com"
                 className="w-full bg-surface-card border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/20 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
               />
             </div>

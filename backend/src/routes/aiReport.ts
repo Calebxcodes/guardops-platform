@@ -83,7 +83,7 @@ Keep the language formal, factual, and suitable for submission to a client, poli
 function generateTemplateReport(incident: any): string {
   const date = new Date(incident.created_at)
   const ref = `SE-${date.toISOString().slice(0,10).replace(/-/g,'')}-${String(incident.id).padStart(4,'0')}`
-  return `SECUREEDGE INCIDENT REPORT
+  return `STRONDIS INCIDENT REPORT
 Reference: ${ref}
 Generated: ${new Date().toLocaleString('en-GB')}
 
@@ -112,7 +112,7 @@ I confirm that the information recorded in this report is accurate to the best o
 
 Officer: ${incident.first_name} ${incident.last_name}
 Report ID: ${ref}
-Platform: SecureEdge Operations Platform`
+Platform: Strondis Operations Platform`
 }
 
 export default router

@@ -58,7 +58,7 @@ export default function Layout() {
           </div>
           {sidebarOpen && (
             <div className="min-w-0 flex-1">
-              <div className="font-bold text-sm leading-none text-white tracking-tight">SecureEdge</div>
+              <div className="font-bold text-sm leading-none text-white tracking-tight">Strondis</div>
               <div className="text-gray-500 text-xs mt-0.5">Operations Platform</div>
             </div>
           )}
@@ -125,7 +125,7 @@ export default function Layout() {
                   <Shield size={16} className="text-white" />
                 </div>
                 <div>
-                  <div className="font-bold text-sm text-white">SecureEdge</div>
+                  <div className="font-bold text-sm text-white">Strondis</div>
                   <div className="text-gray-500 text-xs">Operations Platform</div>
                 </div>
               </div>
@@ -183,7 +183,7 @@ export default function Layout() {
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
               <Shield size={14} className="text-white" />
             </div>
-            <span className="font-bold text-sm text-gray-900">SecureEdge</span>
+            <span className="font-bold text-sm text-gray-900">Strondis</span>
           </div>
           <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded-lg">
             <LogOut size={18} />

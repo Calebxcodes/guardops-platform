@@ -38,7 +38,7 @@ export default function ResetPassword() {
           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-xl">
             <Shield size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">SecureEdge</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Strondis</h1>
           <p className="text-gray-500 text-sm mt-1">Set a new password</p>
         </div>
 

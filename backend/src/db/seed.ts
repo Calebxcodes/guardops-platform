@@ -70,28 +70,28 @@ export async function seed() {
     [first, last, email, phone, empType, status, rate, JSON.stringify(certs), JSON.stringify(skills)]
   )).rows[0].id
 
-  const g1 = await insertGuard('Marcus',  'Williams',  'marcus.w@secureedge.co.uk',  '07700 900142', 'full-time', 'on-duty',  14.00,
+  const g1 = await insertGuard('Marcus',  'Williams',  'marcus.w@strondis.com',  '07700 900142', 'full-time', 'on-duty',  14.00,
     [{name:'SIA Door Supervisor', expiry:'2025-09-15'},{name:'First Aid at Work', expiry:'2026-06-30'}],
     ['Door Supervisor','Crowd Control','First Aid'])
-  const g2 = await insertGuard('Priya',   'Sharma',    'priya.s@secureedge.co.uk',   '07700 900218', 'full-time', 'on-duty',  14.00,
+  const g2 = await insertGuard('Priya',   'Sharma',    'priya.s@strondis.com',   '07700 900218', 'full-time', 'on-duty',  14.00,
     [{name:'SIA Door Supervisor', expiry:'2026-03-22'},{name:'CCTV Operator', expiry:'2026-11-01'}],
     ['Door Supervisor','CCTV','Conflict Resolution'])
-  const g3 = await insertGuard('Deon',    'Campbell',  'deon.c@secureedge.co.uk',    '07700 900374', 'full-time', 'off-duty', 14.00,
+  const g3 = await insertGuard('Deon',    'Campbell',  'deon.c@strondis.com',    '07700 900374', 'full-time', 'off-duty', 14.00,
     [{name:'SIA Door Supervisor', expiry:'2026-07-11'}],
     ['Door Supervisor','Event Security'])
-  const g4 = await insertGuard('Sarah',   'Mitchell',  'sarah.m@secureedge.co.uk',   '07700 900451', 'full-time', 'on-duty',  13.00,
+  const g4 = await insertGuard('Sarah',   'Mitchell',  'sarah.m@strondis.com',   '07700 900451', 'full-time', 'on-duty',  13.00,
     [{name:'SIA Security Guard', expiry:'2025-11-30'},{name:'First Aid at Work', expiry:'2025-09-01'}],
     ['Security Guard','Retail Security','CCTV'])
-  const g5 = await insertGuard('Jason',   'Okafor',    'jason.o@secureedge.co.uk',   '07700 900583', 'part-time', 'off-duty', 13.00,
+  const g5 = await insertGuard('Jason',   'Okafor',    'jason.o@strondis.com',   '07700 900583', 'part-time', 'off-duty', 13.00,
     [{name:'SIA Door Supervisor', expiry:'2026-01-05'}],
     ['Door Supervisor'])
-  const g6 = await insertGuard('Amira',   'Hassan',    'amira.h@secureedge.co.uk',   '07700 900627', 'full-time', 'on-duty',  14.00,
+  const g6 = await insertGuard('Amira',   'Hassan',    'amira.h@strondis.com',   '07700 900627', 'full-time', 'on-duty',  14.00,
     [{name:'SIA Door Supervisor', expiry:'2025-08-02'}],
     ['Door Supervisor','Conflict Resolution'])
-  const g7 = await insertGuard('Tyler',   'Booth',     'tyler.b@secureedge.co.uk',   '07700 900714', 'on-call',   'off-duty', 13.00,
+  const g7 = await insertGuard('Tyler',   'Booth',     'tyler.b@strondis.com',   '07700 900714', 'on-call',   'off-duty', 13.00,
     [{name:'SIA Security Guard', expiry:'2026-05-19'}],
     ['Security Guard'])
-  const g8 = await insertGuard('Fatima',  'Al-Rashid', 'fatima.a@secureedge.co.uk',  '07700 900809', 'full-time', 'on-duty',  14.00,
+  const g8 = await insertGuard('Fatima',  'Al-Rashid', 'fatima.a@strondis.com',  '07700 900809', 'full-time', 'on-duty',  14.00,
     [{name:'SIA Door Supervisor', expiry:'2025-12-08'},{name:'First Aid at Work', expiry:'2026-03-15'}],
     ['Door Supervisor','First Aid','Conflict Resolution'])
 
@@ -217,9 +217,9 @@ export async function seed() {
   await query(`INSERT INTO messages (from_guard_id, to_guard_id, body, is_emergency) VALUES ($1, NULL, $2, 0)`,
     [g1, 'CCTV camera on the side exit appears to be offline. Awaiting confirmation from venue management.'])
 
-  console.log('✅ SecureEdge database seeded successfully')
+  console.log('✅ Strondis database seeded successfully')
   console.log('   Guard login: [email] / guard123')
-  console.log('   Admin login: admin@secureedge.co.uk / admin123')
+  console.log('   Admin login: admin@strondis.com / admin123')
 }
 
 // Allow running directly: ts-node src/db/seed.ts

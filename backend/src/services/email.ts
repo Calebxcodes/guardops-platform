@@ -4,8 +4,8 @@ const SMTP_HOST = process.env.SMTP_HOST
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587')
 const SMTP_USER = process.env.SMTP_USER
 const SMTP_PASS = process.env.SMTP_PASS
-const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@secureedge.co.uk'
-const APP_URL    = process.env.APP_URL || 'https://secureedge.co.uk'
+const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@strondis.com'
+const APP_URL    = process.env.APP_URL || 'https://strondis.com'
 
 const transporter = SMTP_HOST && SMTP_USER && SMTP_PASS
   ? nodemailer.createTransport({
@@ -29,10 +29,10 @@ export async function sendPasswordReset(to: string, token: string, userType: 'ad
   const path = userType === 'admin' ? '/reset-password' : '/reset-password'
   const base = userType === 'admin' ? APP_URL : (process.env.GUARD_APP_URL || APP_URL)
   const link = `${base}${path}?token=${token}`
-  await send(to, 'Reset your SecureEdge password', `
+  await send(to, 'Reset your Strondis password', `
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
       <h2 style="color:#1d4ed8">Password Reset</h2>
-      <p>You requested a password reset for your SecureEdge account.</p>
+      <p>You requested a password reset for your Strondis account.</p>
       <p>Click the link below to set a new password. This link expires in <strong>1 hour</strong>.</p>
       <a href="${link}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">
         Reset Password
@@ -45,11 +45,11 @@ export async function sendPasswordReset(to: string, token: string, userType: 'ad
 export async function sendAlertEmail(to: string, subject: string, lines: string[]) {
   const html = `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-      <h2 style="color:#1d4ed8">SecureEdge Daily Alert</h2>
+      <h2 style="color:#1d4ed8">Strondis Daily Alert</h2>
       <ul style="line-height:1.8">
         ${lines.map(l => `<li>${l}</li>`).join('')}
       </ul>
-      <p style="color:#6b7280;font-size:12px;margin-top:24px">SecureEdge Operations Platform — automated daily digest</p>
+      <p style="color:#6b7280;font-size:12px;margin-top:24px">Strondis Operations Platform — automated daily digest</p>
     </div>
   `
   await send(to, subject, html)

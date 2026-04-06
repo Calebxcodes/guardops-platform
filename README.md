@@ -1,4 +1,4 @@
-# SecureEdge — Operations Platform
+# Strondis — Operations Platform
 
 A full-stack SaaS platform for small UK security businesses.
 Three apps, one backend, deployable in under 10 minutes.
@@ -6,7 +6,7 @@ Three apps, one backend, deployable in under 10 minutes.
 ## Architecture
 
 ```
-secureedge/
+strondis/
 ├── backend/      Express + SQLite — deployed on Railway
 ├── frontend/     Admin CRM — deployed on Vercel
 └── guard-app/    Officer mobile app — deployed on Vercel
@@ -38,8 +38,8 @@ VITE_API_URL=https://your-backend.railway.app
 
 ## Default Credentials
 
-**Admin CRM:** admin@secureedge.co.uk / admin123
-**Guard App:** marcus.w@secureedge.co.uk / guard123
+**Admin CRM:** admin@strondis.com / admin123
+**Guard App:** marcus.w@strondis.com / guard123
 *(All demo guards use password: guard123)*
 
 ## Features

@@ -63,7 +63,7 @@ export default function PortalView() {
               <Shield size={20} />
             </div>
             <div>
-              <div className="font-bold text-lg leading-none">SecureEdge</div>
+              <div className="font-bold text-lg leading-none">Strondis</div>
               <div className="text-gray-400 text-xs">Client Security Portal</div>
             </div>
           </div>
@@ -317,7 +317,7 @@ export default function PortalView() {
 
       {/* Footer */}
       <div className="text-center py-8 text-xs text-gray-400 border-t border-gray-200 mt-8">
-        Powered by <strong>SecureEdge</strong> · Secure client portal · Data refreshes on each page load
+        Powered by <strong>Strondis</strong> · Secure client portal · Data refreshes on each page load
       </div>
     </div>
   )
