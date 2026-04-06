@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react'
-import { MapPin, CheckCircle, AlertCircle, Loader, ScanFace } from 'lucide-react'
+import { MapPin, CheckCircle, AlertCircle, Loader, ScanFace, Navigation } from 'lucide-react'
+
+const GEOFENCE_YARDS = 200
+const GEOFENCE_METERS = 183
+
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000
+  const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180
+  const Δφ = (lat2 - lat1) * Math.PI / 180, Δλ = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
 import { shiftsApi, profileApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
 import { GuardShift } from '../../types'
@@ -25,6 +36,14 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult]     = useState<any>(null)
   const hasFaceId = guard?.has_face_id ?? false
+
+  // Geofence calculation (client-side preview — backend is authoritative)
+  const distanceMeters = location && shift.lat && shift.lng
+    ? Math.round(haversineMeters(location.lat, location.lng, shift.lat, shift.lng))
+    : null
+  const distanceYards  = distanceMeters !== null ? Math.round(distanceMeters * 1.09361) : null
+  const siteHasCoords  = !!(shift.lat && shift.lng)
+  const withinRange    = distanceMeters !== null ? distanceMeters <= GEOFENCE_METERS : !siteHasCoords
 
   // Pre-fetch stored face descriptor as soon as modal opens (if enrolled)
   useEffect(() => {
@@ -159,17 +178,37 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
           <>
             <h2 className="text-xl font-bold text-white text-center">Confirm Clock {action === 'in' ? 'In' : 'Out'}</h2>
             <div className="bg-surface rounded-xl p-4 space-y-3 text-sm">
-              <div className="flex items-center gap-2">
-                <MapPin size={15} className={location ? 'text-green-400' : 'text-yellow-400'} />
-                {location ? (
-                  <span className="text-white/70">
-                    {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
-                    <span className="text-white/30 ml-2">±{Math.round(location.accuracy)}m</span>
-                  </span>
-                ) : (
-                  <span className="text-yellow-400">No GPS — clocking without location</span>
-                )}
+
+              {/* GPS row */}
+              <div className="flex items-start gap-2">
+                <MapPin size={15} className={location ? (withinRange ? 'text-green-400' : 'text-red-400') : 'text-yellow-400'} />
+                <div className="flex-1">
+                  {location ? (
+                    <>
+                      <span className="text-white/70">
+                        {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
+                        <span className="text-white/30 ml-2">±{Math.round(location.accuracy)}m</span>
+                      </span>
+                      {siteHasCoords && distanceYards !== null && (
+                        <div className={`flex items-center gap-1 mt-1 ${withinRange ? 'text-green-400' : 'text-red-400'}`}>
+                          <Navigation size={11} />
+                          <span className="text-xs font-medium">
+                            {withinRange
+                              ? `${distanceYards} yds from site — within range ✓`
+                              : `${distanceYards} yds from site — must be within ${GEOFENCE_YARDS} yds`}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span className={siteHasCoords ? 'text-red-400' : 'text-yellow-400'}>
+                      {siteHasCoords ? 'GPS required — enable location and try again' : 'No GPS — clocking without location'}
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {/* Face ID row */}
               {hasFaceId && (
                 <div className="flex items-center gap-2">
                   <ScanFace size={15} className={faceVerified ? 'text-green-400' : 'text-yellow-400'} />
@@ -185,16 +224,36 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
                 </div>
               )}
             </div>
+
+            {/* Out-of-range warning banner */}
+            {!withinRange && siteHasCoords && (
+              <div className="bg-red-900/30 border border-red-700/40 rounded-xl px-4 py-3 flex items-center gap-2">
+                <AlertCircle size={16} className="text-red-400 shrink-0" />
+                <span className="text-red-300 text-sm">
+                  You're too far from the site. Move closer and tap "Retry Location".
+                </span>
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button onClick={onClose} className="flex-1 py-3.5 rounded-xl border border-white/10 text-white/60 font-medium">Cancel</button>
-              <button
-                onClick={handleConfirm}
-                disabled={submitting}
-                className={`flex-1 py-3.5 rounded-xl font-semibold text-white flex items-center justify-center gap-2 ${action === 'in' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} disabled:opacity-50`}
-              >
-                {submitting ? <Loader size={16} className="animate-spin" /> : null}
-                Confirm Clock {action === 'in' ? 'In' : 'Out'}
-              </button>
+              {!withinRange && siteHasCoords ? (
+                <button
+                  onClick={getLocation}
+                  className="flex-1 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold flex items-center justify-center gap-2"
+                >
+                  <MapPin size={16} /> Retry Location
+                </button>
+              ) : (
+                <button
+                  onClick={handleConfirm}
+                  disabled={submitting}
+                  className={`flex-1 py-3.5 rounded-xl font-semibold text-white flex items-center justify-center gap-2 ${action === 'in' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} disabled:opacity-50`}
+                >
+                  {submitting ? <Loader size={16} className="animate-spin" /> : null}
+                  Confirm Clock {action === 'in' ? 'In' : 'Out'}
+                </button>
+              )}
             </div>
           </>
         )}
