@@ -12,6 +12,7 @@ export interface GuardUser {
   skills: string[]
   avatar_url?: string
   created_at?: string
+  has_face_id?: boolean
 }
 
 export interface GuardShift {
@@ -44,6 +45,7 @@ export interface ClockEvent {
   accuracy?: number
   photo_url?: string
   notes?: string
+  face_verified?: number
   created_at: string
 }
 

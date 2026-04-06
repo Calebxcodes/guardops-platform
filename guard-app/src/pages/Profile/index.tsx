@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Shield, DollarSign, Lock, LogOut, ChevronRight, AlertTriangle, CreditCard, Settings } from 'lucide-react'
+import { Shield, Lock, LogOut, ChevronRight, AlertTriangle, Settings, ScanFace, CheckCircle2, Trash2 } from 'lucide-react'
 import { profileApi, authApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
 import Card from '../../components/ui/Card'
 import StatusBadge from '../../components/ui/StatusBadge'
 import { differenceInDays, parseISO, format } from 'date-fns'
 import BottomSheet from '../../components/ui/BottomSheet'
+import FaceCapture from '../../components/FaceCapture'
 
 export default function Profile() {
   const navigate = useNavigate()
@@ -14,6 +15,8 @@ export default function Profile() {
   const [payHistory, setPayHistory] = useState<any[]>([])
   const [showEditSheet, setShowEditSheet] = useState(false)
   const [showPassSheet, setShowPassSheet] = useState(false)
+  const [showFaceSheet, setShowFaceSheet] = useState(false)
+  const [faceEnrolling, setFaceEnrolling] = useState(false)
   const [editForm, setEditForm] = useState({ first_name: guard?.first_name || '', last_name: guard?.last_name || '', phone: guard?.phone || '', address: guard?.address || '' })
   const [passForm, setPassForm] = useState({ current: '', next: '', confirm: '' })
   const [passError, setPassError] = useState('')
@@ -40,6 +43,20 @@ export default function Profile() {
     } catch (e: any) {
       setPassError(e.response?.data?.error || 'Failed to change password')
     }
+  }
+
+  const handleFaceEnrolled = async (descriptor: number[]) => {
+    await profileApi.saveFaceDescriptor(descriptor)
+    updateGuard({ has_face_id: true })
+    setFaceEnrolling(false)
+    setShowFaceSheet(false)
+  }
+
+  const handleFaceRemove = async () => {
+    if (!confirm('Remove Face ID? You will need to re-enrol before face verification is required on clock-in.')) return
+    await profileApi.deleteFaceDescriptor()
+    updateGuard({ has_face_id: false })
+    setShowFaceSheet(false)
   }
 
   const expiringCerts = guard?.certifications?.filter(c => differenceInDays(parseISO(c.expiry), new Date()) <= 60) || []
@@ -139,6 +156,29 @@ export default function Profile() {
         </Card>
       )}
 
+      {/* Face ID card */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${guard?.has_face_id ? 'bg-green-900/40 border border-green-700/30' : 'bg-white/5 border border-white/10'}`}>
+              <ScanFace size={20} className={guard?.has_face_id ? 'text-green-400' : 'text-white/30'} />
+            </div>
+            <div>
+              <p className="text-white font-medium text-sm">Face ID</p>
+              <p className={`text-xs mt-0.5 ${guard?.has_face_id ? 'text-green-400' : 'text-white/30'}`}>
+                {guard?.has_face_id ? 'Enrolled — used for clock-in verification' : 'Not enrolled'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowFaceSheet(true)}
+            className="text-brand-400 text-sm font-medium hover:text-brand-300 transition-colors"
+          >
+            {guard?.has_face_id ? 'Manage' : 'Set up'}
+          </button>
+        </div>
+      </Card>
+
       {/* Menu items */}
       <Card>
         {[
@@ -193,6 +233,54 @@ export default function Profile() {
             </div>
             <button onClick={saveProfile} className="w-full py-4 bg-brand-600 text-white font-semibold rounded-xl">Save Changes</button>
           </div>
+        </BottomSheet>
+      )}
+
+      {/* Face ID sheet */}
+      {showFaceSheet && (
+        <BottomSheet title="Face ID" onClose={() => { setShowFaceSheet(false); setFaceEnrolling(false) }}>
+          {faceEnrolling ? (
+            <FaceCapture
+              mode="enroll"
+              onSuccess={handleFaceEnrolled}
+              onCancel={() => setFaceEnrolling(false)}
+            />
+          ) : (
+            <div className="space-y-4">
+              <div className={`flex items-center gap-3 p-4 rounded-xl ${guard?.has_face_id ? 'bg-green-900/20 border border-green-700/20' : 'bg-white/5 border border-white/10'}`}>
+                {guard?.has_face_id
+                  ? <CheckCircle2 size={24} className="text-green-400 shrink-0" />
+                  : <ScanFace size={24} className="text-white/30 shrink-0" />}
+                <div>
+                  <p className="text-white text-sm font-medium">
+                    {guard?.has_face_id ? 'Face ID is enrolled' : 'Face ID not set up'}
+                  </p>
+                  <p className="text-white/40 text-xs mt-0.5">
+                    {guard?.has_face_id
+                      ? 'Your face will be verified each time you clock in or out.'
+                      : 'Enrol your face to enable biometric clock-in verification.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setFaceEnrolling(true)}
+                className="w-full py-4 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors"
+              >
+                <ScanFace size={18} />
+                {guard?.has_face_id ? 'Re-enrol Face ID' : 'Enrol Face ID'}
+              </button>
+
+              {guard?.has_face_id && (
+                <button
+                  onClick={handleFaceRemove}
+                  className="w-full py-4 border border-red-500/20 text-red-400 font-medium rounded-xl flex items-center justify-center gap-2 hover:bg-red-500/10 transition-colors"
+                >
+                  <Trash2 size={16} /> Remove Face ID
+                </button>
+              )}
+            </div>
+          )}
         </BottomSheet>
       )}
 

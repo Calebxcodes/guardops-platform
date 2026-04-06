@@ -66,4 +66,7 @@ export const profileApi = {
   payHistory: () => api.get('/guard/profile/pay-history').then(r => r.data),
   incidents: () => api.get('/guard/profile/incidents').then(r => r.data),
   reportIncident: (data: any) => api.post('/guard/profile/incidents', data).then(r => r.data),
+  getFaceDescriptor: () => api.get('/guard/profile/face-descriptor').then(r => r.data),
+  saveFaceDescriptor: (descriptor: number[]) => api.put('/guard/profile/face-descriptor', { descriptor }).then(r => r.data),
+  deleteFaceDescriptor: () => api.delete('/guard/profile/face-descriptor').then(r => r.data),
 }

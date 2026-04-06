@@ -45,7 +45,7 @@ router.get('/history', async (req: AuthRequest, res: Response) => {
 })
 
 router.post('/clock-in', async (req: AuthRequest, res: Response) => {
-  const { shift_id, lat, lng, accuracy, photo_url, notes } = req.body
+  const { shift_id, lat, lng, accuracy, photo_url, notes, face_verified } = req.body
 
   const { rows: shiftRows } = await query('SELECT * FROM shifts WHERE id = $1 AND guard_id = $2', [shift_id, req.guardId])
   const shift = shiftRows[0]
@@ -53,9 +53,9 @@ router.post('/clock-in', async (req: AuthRequest, res: Response) => {
   if (shift.status === 'active') return res.status(409).json({ error: 'Already clocked in' })
 
   await query(`
-    INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes)
-    VALUES ($1,$2,'clock_in',$3,$4,$5,$6,$7)
-  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes])
+    INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes, face_verified)
+    VALUES ($1,$2,'clock_in',$3,$4,$5,$6,$7,$8)
+  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes, face_verified ? 1 : 0])
 
   await query("UPDATE shifts SET status = 'active' WHERE id = $1", [shift_id])
   await query("UPDATE guards SET status = 'on-duty' WHERE id = $1", [req.guardId])
@@ -64,7 +64,7 @@ router.post('/clock-in', async (req: AuthRequest, res: Response) => {
 })
 
 router.post('/clock-out', async (req: AuthRequest, res: Response) => {
-  const { shift_id, lat, lng, accuracy, photo_url, notes } = req.body
+  const { shift_id, lat, lng, accuracy, photo_url, notes, face_verified } = req.body
 
   const { rows: shiftRows } = await query('SELECT * FROM shifts WHERE id = $1 AND guard_id = $2', [shift_id, req.guardId])
   if (!shiftRows[0]) return res.status(404).json({ error: 'Shift not found' })
@@ -76,9 +76,9 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
   `, [req.guardId, shift_id])
 
   await query(`
-    INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes)
-    VALUES ($1,$2,'clock_out',$3,$4,$5,$6,$7)
-  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes])
+    INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes, face_verified)
+    VALUES ($1,$2,'clock_out',$3,$4,$5,$6,$7,$8)
+  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes, face_verified ? 1 : 0])
 
   await query("UPDATE shifts SET status = 'completed' WHERE id = $1", [shift_id])
   await query("UPDATE guards SET status = 'off-duty' WHERE id = $1", [req.guardId])

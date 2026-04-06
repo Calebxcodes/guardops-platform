@@ -204,4 +204,10 @@ export async function initSchema() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `)
+
+  // Non-destructive column additions for existing tables
+  await pool.query(`
+    ALTER TABLE guards ADD COLUMN IF NOT EXISTS face_descriptor TEXT;
+    ALTER TABLE clock_events ADD COLUMN IF NOT EXISTS face_verified INTEGER DEFAULT 0;
+  `)
 }

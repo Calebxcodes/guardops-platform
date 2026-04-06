@@ -50,4 +50,24 @@ router.post('/incidents', async (req: AuthRequest, res: Response) => {
   res.status(201).json(rows[0])
 })
 
+// ── Face descriptor (biometric enrolment) ─────────────────────────────────
+router.get('/face-descriptor', async (req: AuthRequest, res: Response) => {
+  const { rows } = await query('SELECT face_descriptor FROM guards WHERE id = $1', [req.guardId])
+  const raw = rows[0]?.face_descriptor
+  res.json({ descriptor: raw ? JSON.parse(raw) : null })
+})
+
+router.put('/face-descriptor', async (req: AuthRequest, res: Response) => {
+  const { descriptor } = req.body
+  if (!Array.isArray(descriptor) || descriptor.length !== 128)
+    return res.status(400).json({ error: 'Invalid face descriptor' })
+  await query('UPDATE guards SET face_descriptor = $1 WHERE id = $2', [JSON.stringify(descriptor), req.guardId])
+  res.json({ success: true })
+})
+
+router.delete('/face-descriptor', async (req: AuthRequest, res: Response) => {
+  await query('UPDATE guards SET face_descriptor = NULL WHERE id = $1', [req.guardId])
+  res.json({ success: true })
+})
+
 export default router

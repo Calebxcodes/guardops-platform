@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { MapPin, Camera, CheckCircle, AlertCircle, Loader } from 'lucide-react'
-import { shiftsApi } from '../../api'
+import { MapPin, CheckCircle, AlertCircle, Loader, ScanFace } from 'lucide-react'
+import { shiftsApi, profileApi } from '../../api'
+import { useAuthStore } from '../../store/authStore'
 import { GuardShift } from '../../types'
 import { format } from 'date-fns'
+import FaceCapture from '../../components/FaceCapture'
 
 interface Props {
   shift: GuardShift
@@ -11,43 +13,66 @@ interface Props {
   onSuccess: (shift: GuardShift) => void
 }
 
-type Step = 'confirm' | 'locating' | 'ready' | 'success' | 'error'
+type Step = 'confirm' | 'locating' | 'face' | 'ready' | 'success' | 'error'
 
 export default function ClockInModal({ shift, action, onClose, onSuccess }: Props) {
-  const [step, setStep] = useState<Step>('confirm')
+  const guard = useAuthStore(s => s.guard)
+  const [step, setStep]         = useState<Step>('confirm')
   const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null)
-  const [error, setError] = useState('')
+  const [faceVerified, setFaceVerified] = useState(false)
+  const [faceDescriptor, setFaceDescriptor] = useState<number[] | null>(null)
+  const [error, setError]       = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult]     = useState<any>(null)
+  const hasFaceId = guard?.has_face_id ?? false
+
+  // Pre-fetch stored face descriptor as soon as modal opens (if enrolled)
+  useEffect(() => {
+    if (hasFaceId) {
+      profileApi.getFaceDescriptor().then(r => setFaceDescriptor(r.descriptor)).catch(() => {})
+    }
+  }, [hasFaceId])
 
   const getLocation = () => {
     setStep('locating')
     if (!navigator.geolocation) {
       setLocation(null)
-      setStep('ready')
+      afterLocation()
       return
     }
     navigator.geolocation.getCurrentPosition(
       pos => {
         setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy })
-        setStep('ready')
+        afterLocation()
       },
-      () => {
-        setLocation(null)
-        setStep('ready')
-      },
+      () => { setLocation(null); afterLocation() },
       { timeout: 8000, enableHighAccuracy: true }
     )
+  }
+
+  const afterLocation = () => {
+    // If guard has Face ID enrolled, go to face verification step
+    if (hasFaceId) setStep('face')
+    else setStep('ready')
+  }
+
+  const handleFaceSuccess = () => {
+    setFaceVerified(true)
+    setStep('ready')
+  }
+
+  const handleFaceSkip = () => {
+    setFaceVerified(false)
+    setStep('ready')
   }
 
   const handleConfirm = async () => {
     setSubmitting(true)
     try {
-      const data = { shift_id: shift.id, ...location }
+      const data = { shift_id: shift.id, ...location, face_verified: faceVerified }
       const res = action === 'in' ? await shiftsApi.clockIn(data) : await shiftsApi.clockOut(data)
       setResult(res)
       setStep('success')
-      // Refresh shift from API
       const updated = await shiftsApi.today()
       onSuccess(updated || { ...shift, status: action === 'in' ? 'active' : 'completed' })
     } catch (e: any) {
@@ -64,6 +89,7 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
       <div className="relative w-full bg-surface-card rounded-t-3xl p-6 space-y-5 max-w-lg mx-auto">
         <div className="w-12 h-1 bg-white/20 rounded-full mx-auto -mt-2" />
 
+        {/* ── Step: confirm ── */}
         {step === 'confirm' && (
           <>
             <div className="text-center">
@@ -83,6 +109,12 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
                 <span className="text-white/40">Site</span>
                 <span className="text-white truncate ml-4">{shift.site_name}</span>
               </div>
+              {hasFaceId && (
+                <div className="flex justify-between">
+                  <span className="text-white/40">Face ID</span>
+                  <span className="text-brand-400 flex items-center gap-1"><ScanFace size={13} />Required</span>
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <button onClick={onClose} className="flex-1 py-3.5 rounded-xl border border-white/10 text-white/60 font-medium">Cancel</button>
@@ -93,6 +125,7 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
           </>
         )}
 
+        {/* ── Step: locating ── */}
         {step === 'locating' && (
           <div className="text-center py-8">
             <Loader size={40} className="animate-spin text-brand-400 mx-auto mb-4" />
@@ -101,6 +134,27 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
           </div>
         )}
 
+        {/* ── Step: face verification ── */}
+        {step === 'face' && (
+          <>
+            <div className="text-center mb-2">
+              <h2 className="text-lg font-bold text-white">Face ID Verification</h2>
+              <p className="text-white/40 text-sm mt-0.5">Look at the camera to verify your identity</p>
+            </div>
+            <FaceCapture
+              mode="verify"
+              referenceDescriptor={faceDescriptor}
+              onSuccess={handleFaceSuccess}
+              onFail={() => {}}
+              onCancel={handleFaceSkip}
+            />
+            <button onClick={handleFaceSkip} className="w-full py-2.5 text-white/30 text-sm text-center">
+              Skip (will be logged as unverified)
+            </button>
+          </>
+        )}
+
+        {/* ── Step: ready ── */}
         {step === 'ready' && (
           <>
             <h2 className="text-xl font-bold text-white text-center">Confirm Clock {action === 'in' ? 'In' : 'Out'}</h2>
@@ -113,13 +167,23 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
                     <span className="text-white/30 ml-2">±{Math.round(location.accuracy)}m</span>
                   </span>
                 ) : (
-                  <span className="text-yellow-400">Location unavailable — clocking in without GPS</span>
+                  <span className="text-yellow-400">No GPS — clocking without location</span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <Camera size={15} className="text-white/30" />
-                <span className="text-white/30">Photo capture coming in Phase 2</span>
-              </div>
+              {hasFaceId && (
+                <div className="flex items-center gap-2">
+                  <ScanFace size={15} className={faceVerified ? 'text-green-400' : 'text-yellow-400'} />
+                  {faceVerified
+                    ? <span className="text-green-400">Face ID verified</span>
+                    : <span className="text-yellow-400">Face ID skipped — unverified clock</span>}
+                </div>
+              )}
+              {!hasFaceId && (
+                <div className="flex items-center gap-2">
+                  <ScanFace size={15} className="text-white/20" />
+                  <span className="text-white/30">Face ID not enrolled — set up in Profile</span>
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <button onClick={onClose} className="flex-1 py-3.5 rounded-xl border border-white/10 text-white/60 font-medium">Cancel</button>
@@ -135,6 +199,7 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
           </>
         )}
 
+        {/* ── Step: success ── */}
         {step === 'success' && (
           <div className="text-center py-6">
             <CheckCircle size={56} className="text-green-400 mx-auto mb-4" />
@@ -144,13 +209,13 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
                 ? `${result.hours_worked}h worked today`
                 : `Shift started at ${format(new Date(), 'h:mm a')}`}
             </p>
-            {action === 'out' && (
-              <p className="text-green-400/70 text-sm mt-2">Timesheet draft created — submit when ready</p>
-            )}
+            {faceVerified && <p className="text-green-400/70 text-xs mt-2 flex items-center justify-center gap-1"><ScanFace size={12} />Face ID verified</p>}
+            {action === 'out' && <p className="text-green-400/70 text-sm mt-2">Timesheet draft created — submit when ready</p>}
             <button onClick={onClose} className="mt-6 w-full py-3.5 rounded-xl bg-brand-600 text-white font-semibold">Done</button>
           </div>
         )}
 
+        {/* ── Step: error ── */}
         {step === 'error' && (
           <div className="text-center py-6">
             <AlertCircle size={48} className="text-red-400 mx-auto mb-4" />

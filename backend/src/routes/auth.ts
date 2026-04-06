@@ -59,6 +59,7 @@ router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
     skills: JSON.parse(guard.skills || '[]'),
     avatar_url: guard.avatar_url,
     created_at: guard.created_at,
+    has_face_id: !!guard.face_descriptor,
   })
 })
 
