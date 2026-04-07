@@ -219,7 +219,7 @@ export async function seed() {
 
   console.log('✅ Strondis database seeded successfully')
   console.log('   Guard login: [email] / guard123')
-  console.log('   Admin login: admin@strondis.com / admin123')
+  console.log('   Admin login: admin@strondis.com / admin1234')
 }
 
 // Allow running directly: ts-node src/db/seed.ts

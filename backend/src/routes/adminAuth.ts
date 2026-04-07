@@ -28,12 +28,23 @@ export function requireAdmin(req: any, res: Response, next: any) {
 export async function ensureDefaultAdmin() {
   const { rows } = await query('SELECT COUNT(*)::int as c FROM admin_users')
   if (rows[0].c === 0) {
-    const hash = await bcrypt.hash('admin123', 10)
+    const hash = await bcrypt.hash('admin1234', 10)
     await query(
       'INSERT INTO admin_users (name, email, password_hash) VALUES ($1, $2, $3)',
       ['Strondis Admin', 'admin@strondis.com', hash]
     )
-    console.log('Default admin created: admin@strondis.com / admin123')
+    console.log('Default admin created: admin@strondis.com / admin1234')
+  } else {
+    // Force-update password to admin1234 (one-time migration)
+    const { rows: adminRows } = await query('SELECT id FROM admin_users WHERE email = $1', ['admin@strondis.com'])
+    if (adminRows.length > 0) {
+      const valid = await bcrypt.compare('admin123', (await query('SELECT password_hash FROM admin_users WHERE id = $1', [adminRows[0].id])).rows[0].password_hash)
+      if (valid) {
+        const hash = await bcrypt.hash('admin1234', 10)
+        await query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [hash, adminRows[0].id])
+        console.log('Admin password updated to admin1234')
+      }
+    }
   }
 }
 
