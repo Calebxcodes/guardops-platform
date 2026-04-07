@@ -6,7 +6,8 @@ import jwt from 'jsonwebtoken'
 import { sendPasswordReset } from '../services/email'
 
 const router = Router()
-const JWT_SECRET = process.env.JWT_SECRET || 'strondis-admin-secret-change-in-prod'
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set. Refusing to start.')
 
 function signAdminToken(id: number, email: string) {
   return jwt.sign({ adminId: id, email, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' })
@@ -73,13 +74,15 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
   // Always return 200 to prevent email enumeration
   if (!adminRows[0]) return res.json({ message: 'If that email is registered, a reset link has been sent.' })
 
-  const token = crypto.randomBytes(32).toString('hex')
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+  const token      = crypto.randomBytes(32).toString('hex')
+  const tokenHash  = crypto.createHash('sha256').update(token).digest('hex')
+  const expiresAt  = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
 
   await query(`UPDATE password_reset_tokens SET used = 1 WHERE user_type = 'admin' AND user_id = $1`, [adminRows[0].id])
+  // Store hash only — raw token travels only in the email link
   await query(
     `INSERT INTO password_reset_tokens (user_type, user_id, token, expires_at) VALUES ('admin', $1, $2, $3)`,
-    [adminRows[0].id, token, expiresAt.toISOString()]
+    [adminRows[0].id, tokenHash, expiresAt.toISOString()]
   )
 
   await sendPasswordReset(email, token, 'admin')
@@ -91,10 +94,11 @@ router.post('/reset-password', async (req: Request, res: Response) => {
   if (!token || !new_password) return res.status(400).json({ error: 'Token and new password required' })
   if (new_password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
 
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
   const { rows } = await query(`
     SELECT * FROM password_reset_tokens
     WHERE token = $1 AND user_type = 'admin' AND used = 0 AND expires_at > NOW()
-  `, [token])
+  `, [tokenHash])
   if (!rows[0]) return res.status(400).json({ error: 'Invalid or expired reset link' })
 
   const hash = await bcrypt.hash(new_password, 10)

@@ -2,6 +2,7 @@ import 'dotenv/config'
 import 'express-async-errors'
 import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import cron from 'node-cron'
 import { initSchema, query } from './db/schema'
@@ -27,36 +28,62 @@ import clientPortalRouter from './routes/clientPortal'
 
 const app = express()
 const PORT = process.env.PORT || 3001
+const IS_PROD = process.env.NODE_ENV === 'production'
 
 // Trust Railway / Vercel reverse proxy so rate-limiter sees real client IPs
 app.set('trust proxy', 1)
 
+// ── Security headers ──────────────────────────────────────────────────────
+app.use(helmet({
+  crossOriginEmbedderPolicy: false, // allow Vercel preview embeds
+  contentSecurityPolicy: false,     // APIs don't serve HTML; skip CSP
+}))
+
 // ── CORS ──────────────────────────────────────────────────────────────────
+// Explicit allowlist — never allow all of *.vercel.app in production
 const explicitOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) ?? []
+const KNOWN_VERCEL_ORIGINS = [
+  'https://frontend-calebxcodes-projects.vercel.app',
+  'https://guard-app-ten.vercel.app',
+  'https://landing-six-dun-91.vercel.app',
+]
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true)                        // server-to-server / Postman
-    if (origin.includes('localhost')) return callback(null, true)   // local dev
-    if (origin.endsWith('.vercel.app')) return callback(null, true) // all Vercel previews + prod
+    if (!origin) return callback(null, true)                              // server-to-server / Postman
+    if (!IS_PROD && origin.includes('localhost')) return callback(null, true) // local dev only
+    if (KNOWN_VERCEL_ORIGINS.includes(origin)) return callback(null, true)
     if (explicitOrigins.includes(origin)) return callback(null, true)
-    callback(null, false) // silently block — browser will reject, no 500
+    callback(null, false)
   },
   credentials: true,
 }))
 
-app.use(express.json({ limit: '10mb' }))
+// Reduce body limit — face descriptors are ~1 KB, normal requests much less
+app.use(express.json({ limit: '512kb' }))
 
-// ── Rate limiting on auth endpoints ──────────────────────────────────────
+// ── Rate limiting ──────────────────────────────────────────────────────────
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts — please try again in 15 minutes' },
 })
-app.use('/api/auth/login', authLimiter)
-app.use('/api/admin/auth/login', authLimiter)
+// Stricter limit for password reset — prevents token enumeration & email flooding
+const resetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many password reset requests — please try again in an hour' },
+})
+app.use('/api/auth/login',              authLimiter)
+app.use('/api/admin/auth/login',        authLimiter)
+app.use('/api/auth/forgot-password',    resetLimiter)
+app.use('/api/auth/reset-password',     resetLimiter)
+app.use('/api/admin/auth/forgot-password', resetLimiter)
+app.use('/api/admin/auth/reset-password',  resetLimiter)
 
 // ── Routes ────────────────────────────────────────────────────────────────
 app.use('/api/admin/auth', adminAuthRouter)
@@ -81,9 +108,14 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Da
 
 // ── Global error handler (catches all async throws via express-async-errors) ──
 app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
-  console.error(`[${req.method} ${req.path}]`, err.message ?? err)
+  const status = err.status ?? 500
+  console.error(`[${req.method} ${req.path}] ${status}`, err.message ?? err)
   if (res.headersSent) return
-  res.status(err.status ?? 500).json({ error: err.message ?? 'Internal server error' })
+  // In production, never forward raw error messages — they can leak schema/query details
+  const message = IS_PROD && status === 500
+    ? 'An unexpected error occurred. Please try again.'
+    : (err.message ?? 'Internal server error')
+  res.status(status).json({ error: message })
 })
 
 // ── Startup ───────────────────────────────────────────────────────────────
