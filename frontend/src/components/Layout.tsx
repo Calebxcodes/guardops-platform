@@ -7,6 +7,8 @@ import {
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 import { useAuthStore } from '../store/authStore'
+import { useInactivityTimer } from '../hooks/useInactivityTimer'
+import SessionTimeoutModal from './SessionTimeoutModal'
 
 const nav = [
   { to: '/',           label: 'Dashboard',      icon: LayoutDashboard, end: true },
@@ -43,8 +45,20 @@ export default function Layout() {
     navigate('/login', { replace: true })
   }
 
+  const { showWarning, secondsLeft, stayLoggedIn } = useInactivityTimer({
+    onLogout: handleLogout,
+    enabled: true,
+  })
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {showWarning && (
+        <SessionTimeoutModal
+          secondsLeft={secondsLeft}
+          onStay={stayLoggedIn}
+          onLogout={handleLogout}
+        />
+      )}
 
       {/* ── Desktop sidebar ─────────────────────────────────────── */}
       <aside className={clsx(
