@@ -1,4 +1,5 @@
 import { Pool } from 'pg'
+import crypto from 'crypto'
 
 // Railway internal network is secure; only use SSL for external managed DB URLs
 const useSSL = process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('.railway.internal')
@@ -240,6 +241,23 @@ export async function initSchema() {
     );
     CREATE INDEX IF NOT EXISTS push_subs_guard_idx ON push_subscriptions (guard_id);
   `)
+
+  // Portal token hashing migration — adds token_prefix and hashes any existing raw tokens
+  await pool.query(`ALTER TABLE client_portal_tokens ADD COLUMN IF NOT EXISTS token_prefix VARCHAR(16);`)
+  const { rows: rawTokens } = await pool.query(
+    `SELECT id, token FROM client_portal_tokens WHERE token_prefix IS NULL AND length(token) = 64`
+  )
+  if (rawTokens.length > 0) {
+    for (const row of rawTokens) {
+      const hash = crypto.createHash('sha256').update(row.token).digest('hex')
+      const prefix = (row.token as string).slice(0, 12)
+      await pool.query(
+        `UPDATE client_portal_tokens SET token = $1, token_prefix = $2 WHERE id = $3`,
+        [hash, prefix, row.id]
+      )
+    }
+    console.log(`[Migration] Hashed ${rawTokens.length} portal token(s)`)
+  }
 
   // Rate limit hits — shared across all instances
   await pool.query(`

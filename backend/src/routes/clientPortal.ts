@@ -14,14 +14,20 @@ router.post('/generate', requireAdmin, async (req: Request, res: Response) => {
   const { rows } = await query('SELECT * FROM clients WHERE id = $1', [client_id])
   if (!rows[0]) return res.status(404).json({ error: 'Client not found' })
 
-  const token = crypto.randomBytes(32).toString('hex')
-  await query('INSERT INTO client_portal_tokens (client_id, token, label) VALUES ($1,$2,$3)', [client_id, token, label || 'Portal Access'])
-  res.json({ token, url: `/portal/${token}` })
+  const rawToken = crypto.randomBytes(32).toString('hex')
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
+  const tokenPrefix = rawToken.slice(0, 12)
+  await query(
+    'INSERT INTO client_portal_tokens (client_id, token, token_prefix, label) VALUES ($1,$2,$3,$4)',
+    [client_id, tokenHash, tokenPrefix, label || 'Portal Access']
+  )
+  // Return the raw token ONCE — it cannot be recovered after this point
+  res.json({ token: rawToken, url: `/portal/${rawToken}` })
 })
 
 router.get('/tokens/:clientId', requireAdmin, async (req: Request, res: Response) => {
   const { rows } = await query(
-    'SELECT id, client_id, token, label, active, created_at FROM client_portal_tokens WHERE client_id = $1 ORDER BY created_at DESC',
+    'SELECT id, client_id, token_prefix, label, active, created_at FROM client_portal_tokens WHERE client_id = $1 ORDER BY created_at DESC',
     [req.params.clientId]
   )
   res.json(rows)
@@ -39,9 +45,11 @@ router.get('/:token', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Invalid portal link' })
   }
 
+  // Hash the incoming raw token and look up the stored hash
+  const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex')
   const { rows: tokenRows } = await query(
     'SELECT * FROM client_portal_tokens WHERE token = $1 AND active = 1',
-    [req.params.token]
+    [tokenHash]
   )
   const tokenRow = tokenRows[0]
   if (!tokenRow) return res.status(401).json({ error: 'Invalid or expired portal link' })
