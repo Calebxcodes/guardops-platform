@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { query } from '../db/schema'
+import { notifyGuard } from '../services/push'
+import { format } from 'date-fns'
 
 const router = Router()
 
@@ -27,6 +29,21 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.post('/', async (req: Request, res: Response) => {
   const { site_id, guard_id, start_time, end_time, hourly_rate, break_minutes, notes } = req.body
+
+  // Validate required fields and time logic
+  if (!site_id) return res.status(400).json({ error: 'site_id is required' })
+  if (!start_time || !end_time) return res.status(400).json({ error: 'start_time and end_time are required' })
+  const start = new Date(start_time), end = new Date(end_time)
+  if (isNaN(start.getTime()) || isNaN(end.getTime()))
+    return res.status(400).json({ error: 'Invalid datetime values' })
+  if (start >= end)
+    return res.status(400).json({ error: 'start_time must be before end_time' })
+  // Prevent shifts more than 7 days in the past (allow historical data entry up to 1 week)
+  if (start < new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+    return res.status(400).json({ error: 'Cannot create shifts more than 7 days in the past' })
+  // Sanity-check: max 24h shift duration
+  if ((end.getTime() - start.getTime()) > 24 * 60 * 60 * 1000)
+    return res.status(400).json({ error: 'Shift duration cannot exceed 24 hours' })
 
   // Conflict detection
   if (guard_id) {
@@ -56,11 +73,32 @@ router.post('/', async (req: Request, res: Response) => {
     FROM shifts sh LEFT JOIN sites s ON s.id = sh.site_id LEFT JOIN guards g ON g.id = sh.guard_id
     WHERE sh.id = $1
   `, [rows[0].id])
-  res.status(201).json(shift[0])
+  const s = shift[0]
+  if (s.guard_id) {
+    const when = format(new Date(s.start_time), 'EEE d MMM, HH:mm')
+    notifyGuard(s.guard_id, {
+      title: 'Shift Assigned',
+      body: `You have been assigned to ${s.site_name} on ${when}`,
+      url: '/schedule',
+      tag: `shift-assigned-${s.id}`,
+      urgency: 'high',
+    }, { email: true }).catch(() => {})
+  }
+  res.status(201).json(s)
 })
 
 router.put('/:id', async (req: Request, res: Response) => {
   const { site_id, guard_id, start_time, end_time, status, hourly_rate, break_minutes, notes } = req.body
+
+  if (start_time && end_time) {
+    const start = new Date(start_time), end = new Date(end_time)
+    if (isNaN(start.getTime()) || isNaN(end.getTime()))
+      return res.status(400).json({ error: 'Invalid datetime values' })
+    if (start >= end)
+      return res.status(400).json({ error: 'start_time must be before end_time' })
+    if ((end.getTime() - start.getTime()) > 24 * 60 * 60 * 1000)
+      return res.status(400).json({ error: 'Shift duration cannot exceed 24 hours' })
+  }
 
   // Conflict detection on reassignment
   if (guard_id) {
@@ -83,11 +121,40 @@ router.put('/:id', async (req: Request, res: Response) => {
     FROM shifts sh LEFT JOIN sites s ON s.id = sh.site_id LEFT JOIN guards g ON g.id = sh.guard_id
     WHERE sh.id = $1
   `, [req.params.id])
-  res.json(rows[0])
+  const updated = rows[0]
+  if (updated?.guard_id) {
+    const when = format(new Date(updated.start_time), 'EEE d MMM, HH:mm')
+    const isCancelled = updated.status === 'cancelled'
+    notifyGuard(updated.guard_id, {
+      title: isCancelled ? 'Shift Cancelled' : 'Shift Updated',
+      body: isCancelled
+        ? `Your shift at ${updated.site_name} on ${when} has been cancelled`
+        : `Your shift at ${updated.site_name} on ${when} has been updated`,
+      url: '/schedule',
+      tag: `shift-update-${updated.id}`,
+      urgency: isCancelled ? 'high' : 'normal',
+    }, { email: isCancelled }).catch(() => {})
+  }
+  res.json(updated)
 })
 
 router.delete('/:id', async (req: Request, res: Response) => {
+  // Fetch before cancelling so we can notify the guard
+  const { rows: before } = await query(`
+    SELECT sh.guard_id, sh.start_time, s.name as site_name
+    FROM shifts sh LEFT JOIN sites s ON s.id = sh.site_id WHERE sh.id = $1
+  `, [req.params.id])
   await query("UPDATE shifts SET status = 'cancelled' WHERE id = $1", [req.params.id])
+  if (before[0]?.guard_id) {
+    const when = format(new Date(before[0].start_time), 'EEE d MMM, HH:mm')
+    notifyGuard(before[0].guard_id, {
+      title: 'Shift Cancelled',
+      body: `Your shift at ${before[0].site_name} on ${when} has been cancelled`,
+      url: '/schedule',
+      tag: `shift-cancel-${req.params.id}`,
+      urgency: 'high',
+    }, { email: true }).catch(() => {})
+  }
   res.json({ success: true })
 })
 

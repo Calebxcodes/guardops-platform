@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Site, Client } from '../../types'
 import { sitesApi, clientsApi } from '../../api'
 import Modal from '../../components/Modal'
-import { Plus, Search, Edit, Building2, Users, DollarSign, MapPin } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Building2, Users, PoundSterling, MapPin } from 'lucide-react'
 import SiteForm from './SiteForm'
 import ClientForm from './ClientForm'
 
@@ -36,10 +36,22 @@ export default function Sites() {
     setShowSiteForm(false); setEditingSite(null); load()
   }
 
+  const deleteSite = async (site: Site) => {
+    if (!confirm(`Delete "${site.name}"? This will deactivate the site and cannot be undone.`)) return
+    await sitesApi.delete(site.id)
+    load()
+  }
+
   const saveClient = async (data: any) => {
     if (editingClient) await clientsApi.update(editingClient.id, data)
     else await clientsApi.create(data)
     setShowClientForm(false); setEditingClient(null); load()
+  }
+
+  const deleteClient = async (client: Client) => {
+    if (!confirm(`Delete "${client.name}"? This will deactivate the client and all their sites.`)) return
+    await clientsApi.delete(client.id)
+    load()
   }
 
   return (
@@ -91,12 +103,21 @@ export default function Sites() {
                   <h3 className="font-semibold">{site.name}</h3>
                   <p className="text-sm text-gray-500 mt-0.5">{site.client_name}</p>
                 </div>
-                <button
-                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                  onClick={() => { setEditingSite(site); setShowSiteForm(true) }}
-                >
-                  <Edit size={15} />
-                </button>
+                <div className="flex gap-1">
+                  <button
+                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                    onClick={() => { setEditingSite(site); setShowSiteForm(true) }}
+                  >
+                    <Edit size={15} />
+                  </button>
+                  <button
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                    onClick={() => deleteSite(site)}
+                    title="Delete site"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
 
               {site.address && (
@@ -121,10 +142,10 @@ export default function Sites() {
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-0.5 text-gray-700 font-semibold">
-                    <DollarSign size={12} />
+                    <PoundSterling size={12} />
                     {site.hourly_rate}
                   </div>
-                  <div className="text-xs text-gray-400">/hr</div>
+                  <div className="text-xs text-gray-400">client/hr</div>
                 </div>
               </div>
 
@@ -171,12 +192,21 @@ export default function Sites() {
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs max-w-xs truncate">{client.notes}</td>
                   <td className="px-4 py-3">
-                    <button
-                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                      onClick={() => { setEditingClient(client); setShowClientForm(true) }}
-                    >
-                      <Edit size={15} />
-                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                        onClick={() => { setEditingClient(client); setShowClientForm(true) }}
+                      >
+                        <Edit size={15} />
+                      </button>
+                      <button
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                        onClick={() => deleteClient(client)}
+                        title="Delete client"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

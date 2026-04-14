@@ -72,11 +72,26 @@ router.put('/:id', async (req: Request, res: Response) => {
 
 router.post('/bulk-approve', async (req: Request, res: Response) => {
   const { ids } = req.body
-  await query(
+  if (!Array.isArray(ids) || ids.length === 0)
+    return res.status(400).json({ error: 'ids must be a non-empty array' })
+  if (ids.length > 500)
+    return res.status(400).json({ error: 'Maximum 500 timesheets per batch' })
+  if (!ids.every((id: unknown) => Number.isInteger(id) && (id as number) > 0))
+    return res.status(400).json({ error: 'All ids must be positive integers' })
+
+  // Only approve timesheets that are in draft or submitted — never re-approve paid records
+  const { rows: invalid } = await query(
+    `SELECT id FROM timesheets WHERE id = ANY($1) AND status NOT IN ('draft','submitted')`,
+    [ids]
+  )
+  if (invalid.length > 0)
+    return res.status(400).json({ error: `${invalid.length} timesheet(s) are not in approvable status` })
+
+  const { rowCount } = await query(
     `UPDATE timesheets SET status='approved', approved_at=NOW() WHERE id = ANY($1)`,
     [ids]
   )
-  res.json({ success: true, count: ids.length })
+  res.json({ success: true, count: rowCount ?? 0 })
 })
 
 export default router

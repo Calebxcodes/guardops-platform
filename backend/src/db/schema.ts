@@ -210,4 +210,122 @@ export async function initSchema() {
     ALTER TABLE guards ADD COLUMN IF NOT EXISTS face_descriptor TEXT;
     ALTER TABLE clock_events ADD COLUMN IF NOT EXISTS face_verified INTEGER DEFAULT 0;
   `)
+
+  // Hourly site checks table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS shift_checks (
+      id SERIAL PRIMARY KEY,
+      guard_id INTEGER REFERENCES guards(id),
+      shift_id INTEGER REFERENCES shifts(id),
+      checked_at TIMESTAMPTZ DEFAULT NOW(),
+      headcount INTEGER DEFAULT 0,
+      fire_exits_clear INTEGER DEFAULT 0,
+      toilets_ok INTEGER DEFAULT 0,
+      lighting_ok INTEGER DEFAULT 0,
+      notes TEXT
+    );
+  `)
+
+  // Push notification subscriptions
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id         SERIAL PRIMARY KEY,
+      guard_id   INTEGER NOT NULL REFERENCES guards(id) ON DELETE CASCADE,
+      endpoint   TEXT NOT NULL,
+      p256dh     TEXT NOT NULL,
+      auth       TEXT NOT NULL,
+      user_agent TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (guard_id, endpoint)
+    );
+    CREATE INDEX IF NOT EXISTS push_subs_guard_idx ON push_subscriptions (guard_id);
+  `)
+
+  // Rate limit hits — shared across all instances
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rate_limit_hits (
+      key        TEXT NOT NULL,
+      hit_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS rate_limit_hits_key_idx ON rate_limit_hits (key, hit_at);
+  `)
+
+  // Audit log — immutable record of security-sensitive events
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id SERIAL PRIMARY KEY,
+      user_type TEXT NOT NULL,          -- 'admin' | 'guard' | 'system'
+      user_id   INTEGER,
+      action    TEXT NOT NULL,          -- e.g. 'login', 'clock_in', 'face_enrol'
+      resource_type TEXT,               -- e.g. 'shift', 'guard'
+      resource_id   INTEGER,
+      ip_address    TEXT,
+      extra         TEXT,               -- JSON string for any additional context
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS audit_log_user_idx    ON audit_log (user_type, user_id);
+    CREATE INDEX IF NOT EXISTS audit_log_action_idx  ON audit_log (action);
+    CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log (created_at DESC);
+  `)
+}
+
+// ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────
+// Replaces in-memory store so limits are enforced across all Railway instances.
+export class PgRateLimitStore {
+  private windowMs: number
+  constructor(windowMs: number) { this.windowMs = windowMs }
+
+  async increment(key: string): Promise<{ totalHits: number; resetTime: Date }> {
+    const windowStart = new Date(Date.now() - this.windowMs)
+    // Remove stale hits for this key (keep window clean)
+    await pool.query(`DELETE FROM rate_limit_hits WHERE key = $1 AND hit_at < $2`, [key, windowStart])
+    // Record this hit
+    await pool.query(`INSERT INTO rate_limit_hits (key) VALUES ($1)`, [key])
+    // Count hits in current window
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int as total, MIN(hit_at) as oldest FROM rate_limit_hits WHERE key = $1`,
+      [key]
+    )
+    const total = rows[0].total as number
+    const oldest: Date = rows[0].oldest ? new Date(rows[0].oldest) : new Date()
+    const resetTime = new Date(oldest.getTime() + this.windowMs)
+    return { totalHits: total, resetTime }
+  }
+
+  async decrement(key: string): Promise<void> {
+    await pool.query(
+      `DELETE FROM rate_limit_hits WHERE ctid = (SELECT ctid FROM rate_limit_hits WHERE key = $1 ORDER BY hit_at DESC LIMIT 1)`,
+      [key]
+    )
+  }
+
+  async resetKey(key: string): Promise<void> {
+    await pool.query(`DELETE FROM rate_limit_hits WHERE key = $1`, [key])
+  }
+}
+
+// ── Audit helper ──────────────────────────────────────────────────────────────
+// Fire-and-forget: never throws — audit failure must never break the main flow.
+export function auditLog(params: {
+  user_type: 'admin' | 'guard' | 'system'
+  user_id?: number
+  action: string
+  resource_type?: string
+  resource_id?: number
+  ip_address?: string
+  extra?: Record<string, unknown>
+}) {
+  pool.query(
+    `INSERT INTO audit_log (user_type, user_id, action, resource_type, resource_id, ip_address, extra)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      params.user_type,
+      params.user_id ?? null,
+      params.action,
+      params.resource_type ?? null,
+      params.resource_id ?? null,
+      params.ip_address ?? null,
+      params.extra ? JSON.stringify(params.extra) : null,
+    ]
+  ).catch(err => console.error('[audit] write failed:', err.message))
 }

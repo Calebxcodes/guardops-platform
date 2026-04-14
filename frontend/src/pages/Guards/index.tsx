@@ -111,8 +111,10 @@ export default function Guards() {
                   <tr key={guard.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-xs shrink-0">
-                          {guard.first_name[0]}{guard.last_name[0]}
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-xs shrink-0 overflow-hidden">
+                          {guard.avatar_url
+                            ? <img src={guard.avatar_url} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display='none' }} />
+                            : <>{guard.first_name[0]}{guard.last_name[0]}</>}
                         </div>
                         <div className="min-w-0">
                           <div className="font-medium truncate">{guard.first_name} {guard.last_name}</div>
@@ -163,8 +165,10 @@ export default function Guards() {
               <div key={guard.id} className="card p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-sm shrink-0">
-                      {guard.first_name[0]}{guard.last_name[0]}
+                    <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-sm shrink-0 overflow-hidden">
+                      {guard.avatar_url
+                        ? <img src={guard.avatar_url} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display='none' }} />
+                        : <>{guard.first_name[0]}{guard.last_name[0]}</>}
                     </div>
                     <div className="min-w-0">
                       <div className="font-semibold truncate">{guard.first_name} {guard.last_name}</div>

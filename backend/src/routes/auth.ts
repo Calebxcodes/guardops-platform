@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
-import { query } from '../db/schema'
+import { query, auditLog } from '../db/schema'
 import { signToken, requireAuth, AuthRequest } from '../middleware/auth'
 import { sendPasswordReset } from '../services/email'
 
@@ -20,8 +20,12 @@ router.post('/login', async (req: Request, res: Response) => {
   if (!auth) return res.status(401).json({ error: 'Account not set up. Contact your manager.' })
 
   const valid = await bcrypt.compare(password, auth.password_hash)
-  if (!valid) return res.status(401).json({ error: 'Invalid email or password' })
+  if (!valid) {
+    auditLog({ user_type: 'guard', action: 'login_failed', extra: { email }, ip_address: req.ip })
+    return res.status(401).json({ error: 'Invalid email or password' })
+  }
 
+  auditLog({ user_type: 'guard', user_id: guard.id, action: 'login', ip_address: req.ip })
   const token = signToken(guard.id, guard.email)
   res.json({
     token,
@@ -37,6 +41,7 @@ router.post('/login', async (req: Request, res: Response) => {
       certifications: JSON.parse(guard.certifications || '[]'),
       skills: JSON.parse(guard.skills || '[]'),
       avatar_url: guard.avatar_url,
+      has_face_id: !!guard.face_descriptor,
     }
   })
 })
@@ -65,8 +70,8 @@ router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
 
 router.post('/change-password', requireAuth, async (req: AuthRequest, res: Response) => {
   const { current_password, new_password } = req.body
-  if (!new_password || new_password.length < 8)
-    return res.status(400).json({ error: 'New password must be at least 8 characters' })
+  if (!new_password || new_password.length < 10)
+    return res.status(400).json({ error: 'New password must be at least 10 characters' })
   const { rows } = await query('SELECT * FROM guard_auth WHERE guard_id = $1', [req.guardId])
   const auth = rows[0]
   if (!auth) return res.status(400).json({ error: 'Auth record not found' })
@@ -74,6 +79,7 @@ router.post('/change-password', requireAuth, async (req: AuthRequest, res: Respo
   if (!valid) return res.status(401).json({ error: 'Current password is incorrect' })
   const hash = await bcrypt.hash(new_password, 10)
   await query('UPDATE guard_auth SET password_hash = $1 WHERE guard_id = $2', [hash, req.guardId])
+  auditLog({ user_type: 'guard', user_id: req.guardId, action: 'password_changed', ip_address: req.ip })
   res.json({ success: true })
 })
 
@@ -104,7 +110,7 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
 router.post('/reset-password', async (req: Request, res: Response) => {
   const { token, new_password } = req.body
   if (!token || !new_password) return res.status(400).json({ error: 'Token and new password required' })
-  if (new_password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
+  if (new_password.length < 10) return res.status(400).json({ error: 'Password must be at least 10 characters' })
 
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
   const { rows } = await query(`
@@ -113,13 +119,14 @@ router.post('/reset-password', async (req: Request, res: Response) => {
   `, [tokenHash])
   if (!rows[0]) return res.status(400).json({ error: 'Invalid or expired reset link' })
 
+  // Invalidate token FIRST (atomic), then update password — prevents race-condition reuse
   const hash = await bcrypt.hash(new_password, 10)
+  await query(`UPDATE password_reset_tokens SET used = 1 WHERE id = $1`, [rows[0].id])
   await query(
     `INSERT INTO guard_auth (guard_id, password_hash) VALUES ($1, $2)
      ON CONFLICT (guard_id) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
     [rows[0].user_id, hash]
   )
-  await query(`UPDATE password_reset_tokens SET used = 1 WHERE id = $1`, [rows[0].id])
   res.json({ message: 'Password updated successfully' })
 })
 

@@ -42,6 +42,28 @@ export async function sendPasswordReset(to: string, token: string, userType: 'ad
   `)
 }
 
+export async function sendGuardNotificationEmail(
+  to: string,
+  firstName: string,
+  payload: { title: string; body: string; url?: string }
+) {
+  const guardAppUrl = process.env.GUARD_APP_URL || 'https://guard-app-ten.vercel.app'
+  const link = payload.url ? `${guardAppUrl}${payload.url}` : guardAppUrl
+  await send(to, payload.title, `
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#0f172a;color:#e2e8f0;border-radius:12px">
+      <div style="margin-bottom:20px">
+        <span style="display:inline-block;background:#1e3a8a;color:#93c5fd;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;letter-spacing:0.05em">STRONDIS GUARD</span>
+      </div>
+      <h2 style="color:#f1f5f9;margin:0 0 8px">${payload.title}</h2>
+      <p style="color:#94a3b8;margin:0 0 20px">Hi ${firstName}, ${payload.body}</p>
+      <a href="${link}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Open Strondis Guard →
+      </a>
+      <p style="color:#475569;font-size:11px;margin-top:24px">You received this because you have notifications enabled on your Strondis Guard account.</p>
+    </div>
+  `)
+}
+
 export async function sendAlertEmail(to: string, subject: string, lines: string[]) {
   const html = `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">

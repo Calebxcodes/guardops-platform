@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, formatDistanceToNow, isPast, isFuture, differenceInMinutes } from 'date-fns'
 import {
   MapPin, Clock, ChevronRight, Bell, AlertTriangle,
-  LogIn, LogOut, FileText, MessageCircle, Navigation
+  LogIn, LogOut, FileText, MessageCircle, Navigation, ClipboardCheck
 } from 'lucide-react'
 import { shiftsApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
@@ -12,6 +12,9 @@ import { GuardShift } from '../../types'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Card from '../../components/ui/Card'
 import ClockInModal from './ClockInModal'
+import HourlyChecksModal from '../../components/HourlyChecksModal'
+
+const CHECK_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -22,17 +25,55 @@ export default function Dashboard() {
   const [clockAction, setClockAction] = useState<'in' | 'out'>('in')
   const [now, setNow] = useState(new Date())
 
-  useEffect(() => {
-    const load = async () => {
-      const [today, upcoming] = await Promise.all([shiftsApi.today(), shiftsApi.upcoming()])
-      setTodayShift(today)
-      setUpcomingShifts(upcoming.slice(0, 5))
-      setLoading(false)
+  // Hourly checks state
+  const [showChecks, setShowChecks] = useState(false)
+  const [checkNumber, setCheckNumber] = useState(1)
+  const lastCheckRef = useRef<number | null>(null)   // timestamp of last check completion
+  const checksCountRef = useRef(0)
+
+  const loadData = useCallback(async () => {
+    const [today, upcoming] = await Promise.all([shiftsApi.today(), shiftsApi.upcoming()])
+    setTodayShift(today)
+    setUpcomingShifts(upcoming.slice(0, 5))
+    setLoading(false)
+
+    // Restore check count from completed checks on an active shift
+    if (today?.id && today.status === 'active') {
+      try {
+        const checks = await shiftsApi.getChecks(today.id)
+        checksCountRef.current = checks.length
+        if (checks.length > 0) {
+          lastCheckRef.current = new Date(checks[checks.length - 1].checked_at).getTime()
+        }
+      } catch { /* ignore */ }
     }
-    load()
+  }, [])
+
+  useEffect(() => {
+    loadData()
     const ticker = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(ticker)
-  }, [])
+  }, [loadData])
+
+  // Hourly check prompt — fires when shift is active and ≥1hr since last check/clock-in
+  useEffect(() => {
+    if (!todayShift || todayShift.status !== 'active') return
+
+    const clockInTime = new Date(todayShift.start_time).getTime()
+    const baseline = lastCheckRef.current ?? clockInTime
+
+    const msElapsed = Date.now() - baseline
+    if (msElapsed >= CHECK_INTERVAL_MS && !showChecks) {
+      setCheckNumber(checksCountRef.current + 1)
+      setShowChecks(true)
+    }
+  }, [now, todayShift, showChecks])
+
+  const handleCheckComplete = () => {
+    checksCountRef.current += 1
+    lastCheckRef.current = Date.now()
+    setShowChecks(false)
+  }
 
   const getHour = () => now.getHours()
   const greeting = getHour() < 12 ? 'Good morning' : getHour() < 17 ? 'Good afternoon' : 'Good evening'
@@ -63,12 +104,29 @@ export default function Dashboard() {
           <p className="text-white/40 text-sm">{greeting},</p>
           <h1 className="text-xl font-bold text-white">{guard?.first_name} {guard?.last_name}</h1>
         </div>
-        <button
-          onClick={() => navigate('/messages')}
-          className="w-10 h-10 bg-surface-card rounded-full flex items-center justify-center border border-white/5 relative"
-        >
-          <Bell size={18} className="text-white/60" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Checks due badge */}
+          {todayShift?.status === 'active' && (
+            <button
+              onClick={() => { setCheckNumber(checksCountRef.current + 1); setShowChecks(true) }}
+              className="w-10 h-10 bg-brand-600/20 rounded-full flex items-center justify-center border border-brand-700/30 relative"
+              title="Submit hourly check"
+            >
+              <ClipboardCheck size={18} className="text-brand-400" />
+              {checksCountRef.current > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand-500 rounded-full text-white text-xs flex items-center justify-center font-bold">
+                  {checksCountRef.current}
+                </span>
+              )}
+            </button>
+          )}
+          <button
+            onClick={() => navigate('/messages')}
+            className="w-10 h-10 bg-surface-card rounded-full flex items-center justify-center border border-white/5 relative"
+          >
+            <Bell size={18} className="text-white/60" />
+          </button>
+        </div>
       </div>
 
       {/* Today's Shift Card */}
@@ -89,7 +147,6 @@ export default function Dashboard() {
             <StatusBadge status={todayShift.status} />
           </div>
 
-          {/* Time */}
           <div className="flex items-center gap-2 mb-3">
             <Clock size={15} className="text-brand-400" />
             <span className="text-white font-medium">
@@ -98,7 +155,6 @@ export default function Dashboard() {
             {estimatedPay && <span className="text-white/40 text-sm ml-auto">£{estimatedPay}</span>}
           </div>
 
-          {/* Address */}
           {todayShift.site_address && (
             <button
               className="flex items-center gap-2 text-brand-400 text-sm mb-4 hover:text-brand-300"
@@ -110,8 +166,7 @@ export default function Dashboard() {
             </button>
           )}
 
-          {/* Countdown */}
-          {minutesUntilShift !== null && minutesUntilShift > 0 && (
+          {minutesUntilShift !== null && minutesUntilShift > 5 && (
             <div className="bg-brand-900/30 border border-brand-700/30 rounded-xl px-4 py-2.5 mb-4 text-center">
               <p className="text-brand-300 text-sm font-medium">
                 Shift starts in {minutesUntilShift > 60
@@ -121,17 +176,39 @@ export default function Dashboard() {
             </div>
           )}
 
-          {todayShift.status === 'active' && (
-            <div className="bg-green-900/30 border border-green-700/30 rounded-xl px-4 py-2.5 mb-4 text-center">
-              <p className="text-green-300 text-sm font-medium">
-                ● On duty — {formatDistanceToNow(new Date(todayShift.start_time))} elapsed
+          {/* ≤5 min until start — prompt to clock in soon */}
+          {todayShift.status === 'assigned' && minutesUntilShift !== null && minutesUntilShift >= 0 && minutesUntilShift <= 5 && (
+            <div className="bg-orange-900/30 border border-orange-500/40 rounded-xl px-4 py-2.5 mb-4 text-center">
+              <p className="text-orange-300 text-sm font-semibold">
+                Shift starts in {minutesUntilShift === 0 ? 'less than a minute' : `${minutesUntilShift} min`} — please clock in now
               </p>
             </div>
           )}
 
-          {/* Action Buttons */}
+          {/* Shift started but not clocked in */}
+          {todayShift.status === 'assigned' && shiftStarted && !shiftEnded && minutesUntilShift === null && (
+            <div className="bg-red-900/30 border border-red-500/40 rounded-xl px-4 py-2.5 mb-4 text-center">
+              <p className="text-red-300 text-sm font-semibold">
+                You haven't clocked in — {differenceInMinutes(now, new Date(todayShift.start_time))} min late. Clock in immediately.
+              </p>
+            </div>
+          )}
+
+          {todayShift.status === 'active' && (
+            <div className="bg-green-900/30 border border-green-700/30 rounded-xl px-4 py-2.5 mb-4">
+              <div className="flex items-center justify-between">
+                <p className="text-green-300 text-sm font-medium text-center flex-1">
+                  ● On duty — {formatDistanceToNow(new Date(todayShift.start_time))} elapsed
+                </p>
+                {checksCountRef.current > 0 && (
+                  <span className="text-green-400/60 text-xs ml-2">{checksCountRef.current} check{checksCountRef.current !== 1 ? 's' : ''} done</span>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 mt-1">
-            {todayShift.status === 'assigned' && shiftStarted && !shiftEnded && (
+            {todayShift.status === 'assigned' && !shiftEnded && (
               <button
                 onClick={() => handleClockPress('in')}
                 className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl py-3 flex items-center justify-center gap-2"
@@ -171,10 +248,10 @@ export default function Dashboard() {
       {/* Quick Actions */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { icon: Navigation, label: 'Route', path: '/map', color: 'text-blue-400' },
-          { icon: FileText, label: 'Timesheet', path: '/timesheet', color: 'text-green-400' },
-          { icon: MessageCircle, label: 'Messages', path: '/messages', color: 'text-purple-400' },
-          { icon: AlertTriangle, label: 'Incident', path: '/incidents', color: 'text-red-400' },
+          { icon: Navigation,     label: 'Route',     path: '/map',       color: 'text-blue-400' },
+          { icon: FileText,       label: 'Timesheet', path: '/timesheet', color: 'text-green-400' },
+          { icon: MessageCircle,  label: 'Messages',  path: '/messages',  color: 'text-purple-400' },
+          { icon: AlertTriangle,  label: 'Incident',  path: '/incidents', color: 'text-red-400' },
         ].map(({ icon: Icon, label, path, color }) => (
           <button
             key={path}
@@ -207,7 +284,24 @@ export default function Dashboard() {
           shift={todayShift}
           action={clockAction}
           onClose={() => setShowClockIn(false)}
-          onSuccess={(updatedShift) => { setTodayShift(updatedShift); setShowClockIn(false) }}
+          onSuccess={(updatedShift) => {
+            setTodayShift(updatedShift)
+            setShowClockIn(false)
+            // After clocking in, reset check timer
+            if (clockAction === 'in') {
+              lastCheckRef.current = null
+              checksCountRef.current = 0
+            }
+          }}
+        />
+      )}
+
+      {showChecks && todayShift && (
+        <HourlyChecksModal
+          shiftId={todayShift.id}
+          checkNumber={checkNumber}
+          onComplete={handleCheckComplete}
+          onDismiss={() => setShowChecks(false)}
         />
       )}
     </div>

@@ -6,7 +6,7 @@ export interface Guard {
   phone: string
   address?: string
   date_of_birth?: string
-  employment_type: 'full-time' | 'part-time' | 'on-call' | 'contractor'
+  employment_type: 'full-time' | 'part-time' | 'on-call' | 'contractor' | 'self-employed'
   status: 'on-duty' | 'off-duty' | 'on-leave' | 'inactive'
   hourly_rate: number
   certifications: Certification[]
@@ -14,6 +14,7 @@ export interface Guard {
   bank_account?: string
   bank_routing?: string
   notes?: string
+  avatar_url?: string
   active: number
   created_at: string
   active_shifts?: number
@@ -22,6 +23,7 @@ export interface Guard {
 export interface Certification {
   name: string
   expiry: string
+  licence_number?: string
 }
 
 export interface Client {

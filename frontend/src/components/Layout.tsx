@@ -2,13 +2,14 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, MapPin, Calendar, ClipboardList,
   DollarSign, BarChart2, AlertTriangle, Settings, Shield,
-  ShieldCheck, ExternalLink, LogOut, Menu, X
+  ShieldCheck, ExternalLink, MessageSquare, LogOut, Menu, X
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 import { useAuthStore } from '../store/authStore'
 import { useInactivityTimer } from '../hooks/useInactivityTimer'
 import SessionTimeoutModal from './SessionTimeoutModal'
+import { messagesApi } from '../api'
 
 const nav = [
   { to: '/',           label: 'Dashboard',      icon: LayoutDashboard, end: true },
@@ -21,6 +22,7 @@ const nav = [
   { to: '/incidents',  label: 'Incidents',       icon: AlertTriangle },
   { to: '/compliance', label: 'SIA Compliance',  icon: ShieldCheck },
   { to: '/portal',     label: 'Client Portal',   icon: ExternalLink },
+  { to: '/messages',   label: 'Messages',        icon: MessageSquare },
   { to: '/settings',   label: 'Settings',        icon: Settings },
 ]
 
@@ -30,8 +32,23 @@ const mobileNav = nav.slice(0, 5)
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [unreadMessages, setUnreadMessages] = useState(0)
   const { admin, logout } = useAuthStore()
   const navigate = useNavigate()
+
+  // Poll for unread guard messages every 30s
+  useEffect(() => {
+    const fetchUnread = () =>
+      messagesApi.list()
+        .then(msgs => {
+          const unread = (msgs as any[]).filter((m: any) => m.from_guard_id !== 0 && !m.read_at).length
+          setUnreadMessages(unread)
+        })
+        .catch(() => {})
+    fetchUnread()
+    const iv = setInterval(fetchUnread, 30000)
+    return () => clearInterval(iv)
+  }, [])
 
   // Close mobile menu on resize to desktop
   useEffect(() => {
@@ -72,7 +89,7 @@ export default function Layout() {
           </div>
           {sidebarOpen && (
             <div className="min-w-0 flex-1">
-              <div className="font-bold text-sm leading-none text-white tracking-tight">Strondis</div>
+              <div className="font-bold text-sm leading-none text-white tracking-tight">Strondis Ops</div>
               <div className="text-gray-500 text-xs mt-0.5">Operations Platform</div>
             </div>
           )}
@@ -94,8 +111,20 @@ export default function Layout() {
                 isActive ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               )}
             >
-              <Icon size={17} className="shrink-0" />
+              <div className="relative shrink-0">
+                <Icon size={17} />
+                {to === '/messages' && unreadMessages > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {unreadMessages > 9 ? '9+' : unreadMessages}
+                  </span>
+                )}
+              </div>
               {sidebarOpen && <span className="truncate">{label}</span>}
+              {sidebarOpen && to === '/messages' && unreadMessages > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-none">
+                  {unreadMessages}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -139,7 +168,7 @@ export default function Layout() {
                   <Shield size={16} className="text-white" />
                 </div>
                 <div>
-                  <div className="font-bold text-sm text-white">Strondis</div>
+                  <div className="font-bold text-sm text-white">Strondis Ops</div>
                   <div className="text-gray-500 text-xs">Operations Platform</div>
                 </div>
               </div>
@@ -159,8 +188,20 @@ export default function Layout() {
                     isActive ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                   )}
                 >
-                  <Icon size={18} className="shrink-0" />
+                  <div className="relative shrink-0">
+                    <Icon size={18} />
+                    {to === '/messages' && unreadMessages > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                        {unreadMessages > 9 ? '9+' : unreadMessages}
+                      </span>
+                    )}
+                  </div>
                   <span>{label}</span>
+                  {to === '/messages' && unreadMessages > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-none">
+                      {unreadMessages}
+                    </span>
+                  )}
                 </NavLink>
               ))}
             </nav>
@@ -197,7 +238,7 @@ export default function Layout() {
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
               <Shield size={14} className="text-white" />
             </div>
-            <span className="font-bold text-sm text-gray-900">Strondis</span>
+            <span className="font-bold text-sm text-gray-900">Strondis Ops</span>
           </div>
           <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded-lg">
             <LogOut size={18} />

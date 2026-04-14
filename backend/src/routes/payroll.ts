@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { query } from '../db/schema'
+import { notifyGuard } from '../services/push'
 
 const router = Router()
 
@@ -20,7 +21,24 @@ router.get('/', async (req: Request, res: Response) => {
 })
 
 router.post('/generate', async (req: Request, res: Response) => {
-  const { period_start, period_end } = req.body
+  const { period_start, period_end, tax_rate } = req.body
+
+  // Validate date format (YYYY-MM-DD)
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/
+  if (!period_start || !period_end)
+    return res.status(400).json({ error: 'period_start and period_end are required' })
+  if (!dateRe.test(period_start) || !dateRe.test(period_end))
+    return res.status(400).json({ error: 'Dates must be in YYYY-MM-DD format' })
+  const startD = new Date(period_start), endD = new Date(period_end)
+  if (isNaN(startD.getTime()) || isNaN(endD.getTime()))
+    return res.status(400).json({ error: 'Invalid date values' })
+  if (startD >= endD)
+    return res.status(400).json({ error: 'period_start must be before period_end' })
+
+  // Validate tax rate
+  if (tax_rate !== undefined && (typeof tax_rate !== 'number' || tax_rate < 0 || tax_rate > 100))
+    return res.status(400).json({ error: 'tax_rate must be a number between 0 and 100' })
+  const deductionRate = typeof tax_rate === 'number' ? tax_rate / 100 : 0.1
 
   const { rows: timesheets } = await query(`
     SELECT t.*, g.hourly_rate
@@ -46,7 +64,7 @@ router.post('/generate', async (req: Request, res: Response) => {
     const regular_pay  = g.regular_hours  * g.hourly_rate
     const overtime_pay = g.overtime_hours * g.hourly_rate * 1.5
     const gross_pay    = regular_pay + overtime_pay
-    const deductions   = gross_pay * 0.1
+    const deductions   = gross_pay * deductionRate
     const net_pay      = gross_pay - deductions
 
     const { rows: existing } = await query(
@@ -81,7 +99,20 @@ router.put('/:id', async (req: Request, res: Response) => {
     WHERE id=$7
   `, [status || record.status, newBonuses, newDeductions, gross, net, processedAt, req.params.id])
   const { rows } = await query('SELECT * FROM payroll_records WHERE id = $1', [req.params.id])
-  res.json(rows[0])
+  const updated = rows[0]
+  // Notify guard when payslip is marked as paid
+  if ((status === 'paid' || status === 'approved') && record.status !== status) {
+    notifyGuard(updated.guard_id, {
+      title: status === 'paid' ? 'Pay Processed' : 'Payslip Approved',
+      body: status === 'paid'
+        ? `Your payment of £${updated.net_pay.toFixed(2)} for ${updated.period_start} – ${updated.period_end} has been processed`
+        : `Your timesheet for ${updated.period_start} – ${updated.period_end} has been approved`,
+      url: '/timesheet',
+      tag: `payroll-${updated.id}`,
+      urgency: 'normal',
+    }, { email: true }).catch(() => {})
+  }
+  res.json(updated)
 })
 
 export default router

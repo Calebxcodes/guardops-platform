@@ -8,6 +8,8 @@ import StatusBadge from '../../components/ui/StatusBadge'
 import { differenceInDays, parseISO, format } from 'date-fns'
 import BottomSheet from '../../components/ui/BottomSheet'
 import FaceCapture from '../../components/FaceCapture'
+import InstallPromptButton from '../../components/InstallPromptButton'
+import PrivacyDialog from '../../components/PrivacyDialog'
 
 export default function Profile() {
   const navigate = useNavigate()
@@ -21,8 +23,18 @@ export default function Profile() {
   const [passForm, setPassForm] = useState({ current: '', next: '', confirm: '' })
   const [passError, setPassError] = useState('')
   const [passDone, setPassDone] = useState(false)
+  const [showCertSheet, setShowCertSheet] = useState(false)
+  const [certEdits, setCertEdits] = useState<{ name: string; expiry: string; licence_number: string }[]>([])
+  const [certSaving, setCertSaving] = useState(false)
+  const [showPrivacy, setShowPrivacy] = useState(false)
 
-  useEffect(() => { profileApi.payHistory().then(setPayHistory) }, [])
+  useEffect(() => {
+    profileApi.payHistory().then(setPayHistory)
+    // Refresh guard data from DB so cert changes made by admin are reflected
+    profileApi.get().then(fresh => {
+      if (fresh?.certifications) updateGuard({ certifications: fresh.certifications })
+    }).catch(() => {})
+  }, [])
 
   const handleLogout = () => { clearAuth(); navigate('/login', { replace: true }) }
 
@@ -35,7 +47,7 @@ export default function Profile() {
   const changePassword = async () => {
     setPassError('')
     if (passForm.next !== passForm.confirm) { setPassError('Passwords do not match'); return }
-    if (passForm.next.length < 6) { setPassError('Password must be at least 6 characters'); return }
+    if (passForm.next.length < 10) { setPassError('Password must be at least 10 characters'); return }
     try {
       await authApi.changePassword(passForm.current, passForm.next)
       setPassDone(true)
@@ -59,7 +71,27 @@ export default function Profile() {
     setShowFaceSheet(false)
   }
 
-  const expiringCerts = guard?.certifications?.filter(c => differenceInDays(parseISO(c.expiry), new Date()) <= 60) || []
+  const expiringCerts = guard?.certifications?.filter(c => c.expiry && differenceInDays(parseISO(c.expiry), new Date()) <= 60) || []
+
+  const openCertSheet = () => {
+    setCertEdits((guard?.certifications || []).map(c => ({
+      name: c.name,
+      expiry: c.expiry || '',
+      licence_number: c.licence_number || '',
+    })))
+    setShowCertSheet(true)
+  }
+
+  const saveCerts = async () => {
+    setCertSaving(true)
+    try {
+      await profileApi.updateCertifications(certEdits)
+      updateGuard({ certifications: certEdits })
+      setShowCertSheet(false)
+    } finally {
+      setCertSaving(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-surface px-4 pt-14 pb-4 space-y-5">
@@ -81,15 +113,15 @@ export default function Profile() {
       {/* Quick stats */}
       <div className="grid grid-cols-3 gap-3">
         <Card className="p-3 text-center">
-          <p className="text-lg font-bold text-white">£{guard?.hourly_rate}</p>
+          <p className="text-sm font-semibold text-white">£{guard?.hourly_rate}</p>
           <p className="text-white/30 text-xs">/hr</p>
         </Card>
         <Card className="p-3 text-center">
-          <p className="text-lg font-bold text-white capitalize">{guard?.employment_type?.replace('-', ' ')}</p>
+          <p className="text-sm font-semibold text-white capitalize leading-tight">{guard?.employment_type?.replace('-', ' ')}</p>
           <p className="text-white/30 text-xs">Contract</p>
         </Card>
         <Card className="p-3 text-center">
-          <p className="text-lg font-bold text-white">{guard?.certifications?.length || 0}</p>
+          <p className="text-sm font-semibold text-white">{guard?.certifications?.length || 0}</p>
           <p className="text-white/30 text-xs">Certs</p>
         </Card>
       </div>
@@ -115,18 +147,27 @@ export default function Profile() {
       {/* Certifications */}
       {(guard?.certifications?.length || 0) > 0 && (
         <Card className="p-4">
-          <p className="text-white/40 text-xs uppercase tracking-wider mb-3">Certifications</p>
-          <div className="space-y-2">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-white/40 text-xs uppercase tracking-wider">Certifications</p>
+            <button onClick={openCertSheet} className="text-brand-400 text-xs font-medium hover:text-brand-300">Edit licence numbers</button>
+          </div>
+          <div className="space-y-3">
             {guard!.certifications.map((c, i) => {
-              const daysLeft = differenceInDays(parseISO(c.expiry), new Date())
+              const daysLeft = c.expiry ? differenceInDays(parseISO(c.expiry), new Date()) : null
+              const color = daysLeft === null ? 'text-white/30' : daysLeft <= 30 ? 'text-red-400' : daysLeft <= 60 ? 'text-yellow-400' : 'text-green-400'
               return (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Shield size={14} className={daysLeft <= 30 ? 'text-red-400' : daysLeft <= 60 ? 'text-yellow-400' : 'text-green-400'} />
-                    <span className="text-white/70 text-sm">{c.name}</span>
+                <div key={i} className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <Shield size={14} className={`mt-0.5 shrink-0 ${color}`} />
+                    <div className="min-w-0">
+                      <p className="text-white/70 text-sm truncate">{c.name}</p>
+                      {c.licence_number && (
+                        <p className="text-white/40 text-xs font-mono mt-0.5">{c.licence_number}</p>
+                      )}
+                    </div>
                   </div>
-                  <span className={`text-xs ${daysLeft <= 30 ? 'text-red-400' : daysLeft <= 60 ? 'text-yellow-400' : 'text-white/30'}`}>
-                    {format(parseISO(c.expiry), 'MMM yyyy')}
+                  <span className={`text-xs shrink-0 ${color}`}>
+                    {c.expiry ? format(parseISO(c.expiry), 'MMM yyyy') : 'No expiry'}
                   </span>
                 </div>
               )
@@ -183,7 +224,7 @@ export default function Profile() {
       <Card>
         {[
           { icon: Lock, label: 'Change Password', action: () => setShowPassSheet(true) },
-          { icon: Shield, label: 'Privacy & Data', action: () => {} },
+          { icon: Shield, label: 'Privacy & Data', action: () => setShowPrivacy(true) },
         ].map(({ icon: Icon, label, action }, i, arr) => (
           <button
             key={label}
@@ -197,12 +238,44 @@ export default function Profile() {
         ))}
       </Card>
 
+      <InstallPromptButton />
+
       <button
         onClick={handleLogout}
         className="w-full py-4 border border-red-500/20 text-red-400 font-semibold rounded-2xl flex items-center justify-center gap-2 hover:bg-red-500/10 transition-colors"
       >
         <LogOut size={18} /> Sign Out
       </button>
+
+      {showPrivacy && <PrivacyDialog onClose={() => setShowPrivacy(false)} />}
+
+      {/* Cert licence number edit sheet */}
+      {showCertSheet && (
+        <BottomSheet title="SIA Licence Numbers" onClose={() => setShowCertSheet(false)}>
+          <div className="space-y-4">
+            <p className="text-white/40 text-xs">Enter your SIA licence number for each certification. This is visible to your manager.</p>
+            {certEdits.map((c, i) => (
+              <div key={i}>
+                <label className="block text-white/50 text-xs mb-1.5">{c.name}</label>
+                <input
+                  className="w-full bg-surface rounded-xl px-3 py-2.5 text-white text-sm font-mono border border-white/10 focus:outline-none focus:border-brand-500 placeholder-white/20"
+                  inputMode="numeric"
+                  placeholder="Digits only, e.g. 1234567890123456"
+                  value={c.licence_number}
+                  onChange={e => setCertEdits(prev => prev.map((x, idx) => idx === i ? { ...x, licence_number: e.target.value.replace(/\D/g, '') } : x))}
+                />
+              </div>
+            ))}
+            <button
+              onClick={saveCerts}
+              disabled={certSaving}
+              className="w-full py-4 bg-brand-600 disabled:opacity-50 text-white font-semibold rounded-xl"
+            >
+              {certSaving ? 'Saving…' : 'Save Licence Numbers'}
+            </button>
+          </div>
+        </BottomSheet>
+      )}
 
       {/* Edit profile sheet */}
       {showEditSheet && (

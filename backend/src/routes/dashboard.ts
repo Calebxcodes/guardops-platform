@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express'
 import { query } from '../db/schema'
 
+
+
 const router = Router()
 
 // Shift duration helper: handles overnight shifts correctly
@@ -111,6 +113,24 @@ router.get('/financial', async (req: Request, res: Response) => {
   ])
 
   res.json({ monthlyRevenue, revenueByClient, monthlyPayroll, guardUtilization })
+})
+
+// ── Audit log — admin-only, paginated ────────────────────────────────────────
+router.get('/audit-log', async (req: Request, res: Response) => {
+  const page  = Math.max(1, parseInt(req.query.page  as string) || 1)
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50))
+  const offset = (page - 1) * limit
+
+  const { rows: [{ total }] } = await query(`SELECT COUNT(*)::int as total FROM audit_log`)
+  const { rows } = await query(`
+    SELECT al.*, g.first_name, g.last_name, au.name as admin_name
+    FROM audit_log al
+    LEFT JOIN guards g      ON al.user_type = 'guard' AND g.id = al.user_id
+    LEFT JOIN admin_users au ON al.user_type = 'admin' AND au.id = al.user_id
+    ORDER BY al.created_at DESC
+    LIMIT $1 OFFSET $2
+  `, [limit, offset])
+  res.json({ data: rows, total, page, limit, pages: Math.ceil(total / limit) })
 })
 
 export default router

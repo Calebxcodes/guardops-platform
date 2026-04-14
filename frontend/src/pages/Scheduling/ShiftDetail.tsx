@@ -44,7 +44,15 @@ export default function ShiftDetail({ shift, sites, guards, onSave, onDelete, on
         <span className="text-sm text-gray-500">{durationHours}h · £{shift.hourly_rate}/hr</span>
       </div>
 
-      <form onSubmit={e => { e.preventDefault(); onSave({ ...form, guard_id: form.guard_id || null }) }} className="space-y-4">
+      <form onSubmit={e => {
+        e.preventDefault()
+        onSave({
+          ...form,
+          guard_id: form.guard_id || null,
+          start_time: form.start_time ? new Date(form.start_time).toISOString() : form.start_time,
+          end_time:   form.end_time   ? new Date(form.end_time).toISOString()   : form.end_time,
+        })
+      }} className="space-y-4">
         <div>
           <label className="label">Site</label>
           <select className="input" value={form.site_id} onChange={e => set('site_id', parseInt(e.target.value))}>

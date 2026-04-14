@@ -18,19 +18,23 @@ router.post('/incident/:id', async (req: Request, res: Response) => {
   const incident = rows[0]
   if (!incident) return res.status(404).json({ error: 'Incident not found' })
 
+  // Strip characters that could be used for prompt injection before interpolating into the AI prompt
+  const safe = (s: string | null | undefined, maxLen = 500) =>
+    (s ?? 'Not recorded').replace(/[`\[\]<>{}\\]/g, '').slice(0, maxLen)
+
   const prompt = `You are a professional security operations AI generating a formal incident report for a UK security company, compliant with BS 7499 standards.
 
 Generate a complete, professional incident report based on this data:
 
 INCIDENT DETAILS:
-- Type: ${incident.type}
-- Severity: ${incident.severity}
+- Type: ${safe(incident.type)}
+- Severity: ${safe(incident.severity)}
 - Date/Time: ${new Date(incident.created_at).toLocaleString('en-GB')}
-- Site: ${incident.site_name}
-- Site Address: ${incident.site_address || 'Not recorded'}
-- Client: ${incident.client_name}
-- Reporting Officer: ${incident.first_name} ${incident.last_name}
-- Description: ${incident.description || 'No description provided'}
+- Site: ${safe(incident.site_name)}
+- Site Address: ${safe(incident.site_address)}
+- Client: ${safe(incident.client_name)}
+- Reporting Officer: ${safe(incident.first_name)} ${safe(incident.last_name)}
+- Description: ${safe(incident.description || 'No description provided', 2000)}
 - Body Camera: ${incident.bodycam ? 'Yes - footage secured' : 'No'}
 - Status: ${incident.resolved ? 'Resolved' : 'Under investigation'}
 

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Shield, Eye, EyeOff, AlertCircle, Loader } from 'lucide-react'
 import { authApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
+import InstallPromptButton from '../../components/InstallPromptButton'
 
 export default function Login() {
   const navigate  = useNavigate()
@@ -35,7 +36,7 @@ export default function Login() {
         <div className="w-20 h-20 bg-brand-900 border-2 border-brand-600 rounded-3xl flex items-center justify-center mb-4 shadow-2xl shadow-brand-900/50">
           <Shield size={40} className="text-brand-400" />
         </div>
-        <h1 className="text-3xl font-bold text-white tracking-tight">Strondis</h1>
+        <h1 className="text-3xl font-bold text-white tracking-tight">Strondis Guard</h1>
         <p className="text-white/40 text-sm mt-1">Officer Portal</p>
       </div>
 
@@ -84,13 +85,10 @@ export default function Login() {
             Forgot your password?
           </Link>
         </div>
+
+        <InstallPromptButton className="mt-2" />
       </form>
 
-      {/* Demo credentials */}
-      <div className="mt-8 bg-surface-card border border-white/5 rounded-xl px-4 py-3 w-full max-w-sm">
-        <p className="text-white/40 text-xs text-center mb-1 font-medium text-white/60">Demo Login</p>
-        <p className="text-white/40 text-xs text-center">marcus.w@strondis.com / guard123</p>
-      </div>
     </div>
   )
 }

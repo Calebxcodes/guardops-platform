@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle, Clock, Shield, Download, Mail, RefreshCw } from 'lucide-react'
 import { format, parseISO, differenceInDays } from 'date-fns'
-import axios from 'axios'
-
-const api = axios.create({ baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api' })
+import { complianceApi } from '../../api'
 
 interface OfficerCompliance {
   id: number
@@ -12,10 +10,11 @@ interface OfficerCompliance {
   phone: string
   status: string
   sia_cert_name: string | null
+  sia_licence_number: string | null
   sia_expiry: string | null
   days_until_expiry: number | null
   sia_status: 'valid' | 'expiring_soon' | 'expired' | 'missing'
-  all_certs: { name: string; expiry: string }[]
+  all_certs: { name: string; expiry: string; licence_number?: string }[]
 }
 
 interface Summary {
@@ -35,8 +34,8 @@ export default function Compliance() {
 
   const load = () => {
     setLoading(true)
-    api.get('/compliance/sia')
-      .then(r => { setOfficers(r.data.officers); setSummary(r.data.summary) })
+    complianceApi.sia()
+      .then(r => { setOfficers(r.officers); setSummary(r.summary) })
       .finally(() => setLoading(false))
   }
 
@@ -53,9 +52,10 @@ export default function Compliance() {
 
   const exportCSV = () => {
     const rows = [
-      ['Name', 'Email', 'Phone', 'SIA Status', 'SIA Expiry', 'Days Remaining', 'Employment Status'],
+      ['Name', 'Email', 'Phone', 'SIA Licence Number', 'SIA Status', 'SIA Expiry', 'Days Remaining', 'Employment Status'],
       ...officers.map(o => [
         o.name, o.email, o.phone,
+        o.sia_licence_number || 'N/A',
         statusConfig[o.sia_status].label,
         o.sia_expiry || 'N/A',
         o.days_until_expiry !== null ? String(o.days_until_expiry) : 'N/A',
@@ -190,6 +190,9 @@ export default function Compliance() {
                       {o.sia_expiry ? (
                         <div>
                           <div className="text-xs text-gray-500">{o.sia_cert_name}</div>
+                          {o.sia_licence_number && (
+                            <div className="text-xs font-mono text-blue-700 font-medium">{o.sia_licence_number}</div>
+                          )}
                           <div className="font-medium text-gray-900">
                             {format(parseISO(o.sia_expiry), 'dd MMM yyyy')}
                           </div>
@@ -258,16 +261,22 @@ export default function Compliance() {
               {selected.all_certs.length === 0 ? (
                 <div className="text-gray-400 text-sm">No certifications on file</div>
               ) : selected.all_certs.map((c, i) => {
-                const days = differenceInDays(parseISO(c.expiry), new Date())
+                const days = c.expiry ? differenceInDays(parseISO(c.expiry), new Date()) : null
+                const bg = days === null ? 'bg-gray-50 border-gray-200' : days < 0 ? 'bg-red-50 border-red-200' : days <= 90 ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'
                 return (
-                  <div key={i} className={`flex items-center justify-between p-3 rounded-lg border ${days < 0 ? 'bg-red-50 border-red-200' : days <= 90 ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
+                  <div key={i} className={`flex items-center justify-between p-3 rounded-lg border ${bg}`}>
                     <div>
                       <div className="text-sm font-medium text-gray-900">{c.name}</div>
-                      <div className="text-xs text-gray-500">Expires: {format(parseISO(c.expiry), 'dd MMM yyyy')}</div>
+                      {c.licence_number && <div className="text-xs font-mono text-blue-700 font-medium mt-0.5">{c.licence_number}</div>}
+                      <div className="text-xs text-gray-500">
+                        {c.expiry ? `Expires: ${format(parseISO(c.expiry), 'dd MMM yyyy')}` : 'No expiry set'}
+                      </div>
                     </div>
-                    <span className={`text-xs font-bold ${days < 0 ? 'text-red-600' : days <= 90 ? 'text-yellow-600' : 'text-green-600'}`}>
-                      {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
-                    </span>
+                    {days !== null && (
+                      <span className={`text-xs font-bold ${days < 0 ? 'text-red-600' : days <= 90 ? 'text-yellow-600' : 'text-green-600'}`}>
+                        {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
+                      </span>
+                    )}
                   </div>
                 )
               })}

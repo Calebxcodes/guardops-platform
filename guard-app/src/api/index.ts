@@ -37,11 +37,14 @@ export const shiftsApi = {
   today: () => api.get('/guard/shifts/today').then(r => r.data),
   upcoming: () => api.get('/guard/shifts/upcoming').then(r => r.data),
   history: () => api.get('/guard/shifts/history').then(r => r.data),
-  clockIn: (data: { shift_id: number; lat?: number; lng?: number; accuracy?: number; notes?: string }) =>
+  clockIn: (data: { shift_id: number; lat?: number; lng?: number; accuracy?: number; notes?: string; face_verified?: boolean }) =>
     api.post('/guard/shifts/clock-in', data).then(r => r.data),
-  clockOut: (data: { shift_id: number; lat?: number; lng?: number; accuracy?: number; notes?: string }) =>
+  clockOut: (data: { shift_id: number; lat?: number; lng?: number; accuracy?: number; notes?: string; face_verified?: boolean }) =>
     api.post('/guard/shifts/clock-out', data).then(r => r.data),
   clockEvents: (shiftId: number) => api.get(`/guard/shifts/${shiftId}/clock-events`).then(r => r.data),
+  getChecks:   (shiftId: number) => api.get(`/guard/shifts/${shiftId}/checks`).then(r => r.data),
+  submitCheck: (shiftId: number, data: { headcount: number; fire_exits_clear: boolean; toilets_ok: boolean; lighting_ok: boolean; notes?: string }) =>
+    api.post(`/guard/shifts/${shiftId}/checks`, data).then(r => r.data),
 }
 
 export const timesheetsApi = {
@@ -60,9 +63,20 @@ export const messagesApi = {
   markRead: (id: number) => api.put(`/guard/messages/${id}/read`, {}).then(r => r.data),
 }
 
+export const pushApi = {
+  getVapidKey: (): Promise<{ key: string }> =>
+    api.get('/guard/push/vapid-public-key').then(r => r.data),
+  subscribe: (subscription: PushSubscriptionJSON) =>
+    api.post('/guard/push/subscribe', subscription).then(r => r.data),
+  unsubscribe: (endpoint: string) =>
+    api.post('/guard/push/unsubscribe', { endpoint }).then(r => r.data),
+}
+
 export const profileApi = {
   get: () => api.get('/guard/profile').then(r => r.data),
   update: (data: any) => api.put('/guard/profile', data).then(r => r.data),
+  updateCertifications: (certifications: { name: string; expiry: string; licence_number?: string }[]) =>
+    api.put('/guard/profile/certifications', { certifications }).then(r => r.data),
   payHistory: () => api.get('/guard/profile/pay-history').then(r => r.data),
   incidents: () => api.get('/guard/profile/incidents').then(r => r.data),
   reportIncident: (data: any) => api.post('/guard/profile/incidents', data).then(r => r.data),

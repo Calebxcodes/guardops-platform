@@ -8,7 +8,7 @@ export interface GuardUser {
   status: string
   employment_type: string
   hourly_rate: number
-  certifications: { name: string; expiry: string }[]
+  certifications: { name: string; expiry: string; licence_number?: string }[]
   skills: string[]
   avatar_url?: string
   created_at?: string

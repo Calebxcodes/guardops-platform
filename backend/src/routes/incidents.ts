@@ -34,10 +34,17 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json(rows[0])
 })
 
+const VALID_SEVERITIES = ['minor', 'moderate', 'major', 'critical'] as const
+
 router.post('/', async (req: Request, res: Response) => {
   const { site_id, guard_id, shift_id, type, severity, description, bodycam } = req.body
   if (!site_id) return res.status(400).json({ error: 'site_id is required' })
   if (!type || !type.trim()) return res.status(400).json({ error: 'Incident type is required' })
+  if (type.length > 200) return res.status(400).json({ error: 'Incident type too long' })
+  if (severity && !VALID_SEVERITIES.includes(severity))
+    return res.status(400).json({ error: `severity must be one of: ${VALID_SEVERITIES.join(', ')}` })
+  if (description && description.length > 5000)
+    return res.status(400).json({ error: 'Description must be under 5000 characters' })
   const { rows } = await query(`
     INSERT INTO incidents (site_id, guard_id, shift_id, type, severity, description, bodycam)
     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id

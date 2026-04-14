@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react'
-import { MapPin, CheckCircle, AlertCircle, Loader, ScanFace, Navigation } from 'lucide-react'
+import { MapPin, CheckCircle, AlertCircle, Loader, ScanFace, Navigation, RefreshCw } from 'lucide-react'
+import { shiftsApi, profileApi } from '../../api'
+import { useAuthStore } from '../../store/authStore'
+import { GuardShift } from '../../types'
+import { format } from 'date-fns'
+import FaceCapture from '../../components/FaceCapture'
+import { useNavigate } from 'react-router-dom'
 
-const GEOFENCE_YARDS = 200
+const GEOFENCE_YARDS  = 200
 const GEOFENCE_METERS = 183
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -11,11 +17,6 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
   const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
-import { shiftsApi, profileApi } from '../../api'
-import { useAuthStore } from '../../store/authStore'
-import { GuardShift } from '../../types'
-import { format } from 'date-fns'
-import FaceCapture from '../../components/FaceCapture'
 
 interface Props {
   shift: GuardShift
@@ -24,26 +25,28 @@ interface Props {
   onSuccess: (shift: GuardShift) => void
 }
 
-type Step = 'confirm' | 'locating' | 'face' | 'ready' | 'success' | 'error'
+type Step = 'confirm' | 'locating' | 'face' | 'face_fail' | 'ready' | 'submitting' | 'success' | 'error'
 
 export default function ClockInModal({ shift, action, onClose, onSuccess }: Props) {
-  const guard = useAuthStore(s => s.guard)
-  const [step, setStep]         = useState<Step>('confirm')
-  const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null)
+  const guard    = useAuthStore(s => s.guard)
+  const navigate = useNavigate()
+
+  const [step, setStep]               = useState<Step>('confirm')
+  const [location, setLocation]       = useState<{ lat: number; lng: number; accuracy: number } | null>(null)
   const [faceVerified, setFaceVerified] = useState(false)
   const [faceDescriptor, setFaceDescriptor] = useState<number[] | null>(null)
-  const [error, setError]       = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [result, setResult]     = useState<any>(null)
+  const [error, setError]             = useState('')
+  const [result, setResult]           = useState<any>(null)
+
   const hasFaceId = guard?.has_face_id ?? false
 
-  // Geofence calculation (client-side preview — backend is authoritative)
+  // Geofence (client-side preview — backend is authoritative)
   const distanceMeters = location && shift.lat && shift.lng
     ? Math.round(haversineMeters(location.lat, location.lng, shift.lat, shift.lng))
     : null
-  const distanceYards  = distanceMeters !== null ? Math.round(distanceMeters * 1.09361) : null
-  const siteHasCoords  = !!(shift.lat && shift.lng)
-  const withinRange    = distanceMeters !== null ? distanceMeters <= GEOFENCE_METERS : !siteHasCoords
+  const distanceYards = distanceMeters !== null ? Math.round(distanceMeters * 1.09361) : null
+  const siteHasCoords = !!(shift.lat && shift.lng)
+  const withinRange   = distanceMeters !== null ? distanceMeters <= GEOFENCE_METERS : !siteHasCoords
 
   // Pre-fetch stored face descriptor as soon as modal opens (if enrolled)
   useEffect(() => {
@@ -56,40 +59,40 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
     setStep('locating')
     if (!navigator.geolocation) {
       setLocation(null)
-      afterLocation()
+      goToFace()
       return
     }
     navigator.geolocation.getCurrentPosition(
       pos => {
         setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy })
-        afterLocation()
+        goToFace()
       },
-      () => { setLocation(null); afterLocation() },
+      () => { setLocation(null); goToFace() },
       { timeout: 8000, enableHighAccuracy: true }
     )
   }
 
-  const afterLocation = () => {
-    // If guard has Face ID enrolled, go to face verification step
-    if (hasFaceId) setStep('face')
-    else setStep('ready')
-  }
+  // Always go to face step — no shortcut path that skips it
+  const goToFace = () => setStep('face')
 
   const handleFaceSuccess = () => {
     setFaceVerified(true)
     setStep('ready')
   }
 
-  const handleFaceSkip = () => {
+  const handleFaceFail = () => {
     setFaceVerified(false)
-    setStep('ready')
+    setStep('face_fail')
   }
 
   const handleConfirm = async () => {
-    setSubmitting(true)
+    // Guard against submitting without face verification
+    if (hasFaceId && !faceVerified) return
+
+    setStep('submitting')
     try {
       const data = { shift_id: shift.id, ...location, face_verified: faceVerified }
-      const res = action === 'in' ? await shiftsApi.clockIn(data) : await shiftsApi.clockOut(data)
+      const res  = action === 'in' ? await shiftsApi.clockIn(data) : await shiftsApi.clockOut(data)
       setResult(res)
       setStep('success')
       const updated = await shiftsApi.today()
@@ -97,14 +100,12 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
     } catch (e: any) {
       setError(e.response?.data?.error || 'Failed. Please try again.')
       setStep('error')
-    } finally {
-      setSubmitting(false)
     }
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={step === 'success' || step === 'error' ? onClose : undefined} />
       <div className="relative w-full bg-surface-card rounded-t-3xl p-6 space-y-5 max-w-lg mx-auto">
         <div className="w-12 h-1 bg-white/20 rounded-full mx-auto -mt-2" />
 
@@ -119,6 +120,7 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
               <p className="text-white/50 mt-1">{shift.site_name}</p>
               <p className="text-white/30 text-sm">{format(new Date(), 'h:mm a, MMM d')}</p>
             </div>
+
             <div className="bg-surface rounded-xl p-4 space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-white/40">Shift time</span>
@@ -128,19 +130,42 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
                 <span className="text-white/40">Site</span>
                 <span className="text-white truncate ml-4">{shift.site_name}</span>
               </div>
-              {hasFaceId && (
-                <div className="flex justify-between">
-                  <span className="text-white/40">Face ID</span>
-                  <span className="text-brand-400 flex items-center gap-1"><ScanFace size={13} />Required</span>
+              {/* 2FA steps preview */}
+              <div className="border-t border-white/5 pt-2 mt-2 space-y-1.5">
+                <div className="flex items-center gap-2 text-white/50">
+                  <MapPin size={13} className="text-brand-400" />
+                  <span>Step 1 — GPS location check</span>
                 </div>
-              )}
+                <div className="flex items-center gap-2 text-white/50">
+                  <ScanFace size={13} className={hasFaceId ? 'text-brand-400' : 'text-red-400'} />
+                  <span>Step 2 — Face ID verification</span>
+                  {!hasFaceId && <span className="text-red-400 text-xs ml-auto">Not enrolled</span>}
+                </div>
+              </div>
             </div>
-            <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 py-3.5 rounded-xl border border-white/10 text-white/60 font-medium">Cancel</button>
-              <button onClick={getLocation} className="flex-1 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold flex items-center justify-center gap-2">
-                <MapPin size={16} /> Get Location
-              </button>
-            </div>
+
+            {!hasFaceId ? (
+              <div className="bg-red-900/30 border border-red-700/40 rounded-xl px-4 py-3 text-center space-y-3">
+                <p className="text-red-300 text-sm font-semibold">Face ID Required</p>
+                <p className="text-red-300/70 text-xs">You must enrol Face ID before you can clock in. Go to your profile to set it up.</p>
+                <div className="flex gap-3">
+                  <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/50 text-sm">Cancel</button>
+                  <button
+                    onClick={() => { onClose(); navigate('/profile') }}
+                    className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                  >
+                    <ScanFace size={15} /> Enrol Face ID
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-3">
+                <button onClick={onClose} className="flex-1 py-3.5 rounded-xl border border-white/10 text-white/60 font-medium">Cancel</button>
+                <button onClick={getLocation} className="flex-1 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold flex items-center justify-center gap-2">
+                  <MapPin size={16} /> Begin Clock {action === 'in' ? 'In' : 'Out'}
+                </button>
+              </div>
+            )}
           </>
         )}
 
@@ -148,8 +173,8 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
         {step === 'locating' && (
           <div className="text-center py-8">
             <Loader size={40} className="animate-spin text-brand-400 mx-auto mb-4" />
-            <p className="text-white font-medium">Getting your location...</p>
-            <p className="text-white/40 text-sm mt-1">Please allow location access</p>
+            <p className="text-white font-medium">Step 1 of 2 — Getting your location...</p>
+            <p className="text-white/40 text-sm mt-1">Please allow location access if prompted</p>
           </div>
         )}
 
@@ -157,20 +182,40 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
         {step === 'face' && (
           <>
             <div className="text-center mb-2">
+              <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Step 2 of 2</p>
               <h2 className="text-lg font-bold text-white">Face ID Verification</h2>
-              <p className="text-white/40 text-sm mt-0.5">Look at the camera to verify your identity</p>
+              <p className="text-white/40 text-sm mt-0.5">Look directly at the camera to verify your identity</p>
             </div>
             <FaceCapture
               mode="verify"
               referenceDescriptor={faceDescriptor}
               onSuccess={handleFaceSuccess}
-              onFail={() => {}}
-              onCancel={handleFaceSkip}
+              onFail={handleFaceFail}
+              onCancel={onClose}
             />
-            <button onClick={handleFaceSkip} className="w-full py-2.5 text-white/30 text-sm text-center">
-              Skip (will be logged as unverified)
-            </button>
           </>
+        )}
+
+        {/* ── Step: face failed ── */}
+        {step === 'face_fail' && (
+          <div className="text-center py-6">
+            <div className="w-16 h-16 rounded-full bg-red-900/40 border border-red-700/40 flex items-center justify-center mx-auto mb-4">
+              <ScanFace size={30} className="text-red-400" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Face Not Recognised</h2>
+            <p className="text-white/50 text-sm mt-2">
+              Your face could not be verified. Ensure good lighting and look directly at the camera.
+            </p>
+            <div className="flex gap-3 mt-6">
+              <button onClick={onClose} className="flex-1 py-3.5 rounded-xl border border-white/10 text-white/60 font-medium">Cancel</button>
+              <button
+                onClick={() => setStep('face')}
+                className="flex-1 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold flex items-center justify-center gap-2"
+              >
+                <RefreshCw size={15} /> Try Again
+              </button>
+            </div>
+          </div>
         )}
 
         {/* ── Step: ready ── */}
@@ -202,35 +247,27 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
                     </>
                   ) : (
                     <span className={siteHasCoords ? 'text-red-400' : 'text-yellow-400'}>
-                      {siteHasCoords ? 'GPS required — enable location and try again' : 'No GPS — clocking without location'}
+                      {siteHasCoords ? 'GPS unavailable — server will enforce location' : 'No GPS — no site coordinates set'}
                     </span>
                   )}
                 </div>
               </div>
 
               {/* Face ID row */}
-              {hasFaceId && (
-                <div className="flex items-center gap-2">
-                  <ScanFace size={15} className={faceVerified ? 'text-green-400' : 'text-yellow-400'} />
-                  {faceVerified
-                    ? <span className="text-green-400">Face ID verified</span>
-                    : <span className="text-yellow-400">Face ID skipped — unverified clock</span>}
-                </div>
-              )}
-              {!hasFaceId && (
-                <div className="flex items-center gap-2">
-                  <ScanFace size={15} className="text-white/20" />
-                  <span className="text-white/30">Face ID not enrolled — set up in Profile</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <ScanFace size={15} className={faceVerified ? 'text-green-400' : 'text-red-400'} />
+                {faceVerified
+                  ? <span className="text-green-400">Face ID verified ✓</span>
+                  : <span className="text-red-400">Face ID not verified — cannot clock {action}</span>}
+              </div>
             </div>
 
-            {/* Out-of-range warning banner */}
+            {/* Out-of-range warning */}
             {!withinRange && siteHasCoords && (
               <div className="bg-red-900/30 border border-red-700/40 rounded-xl px-4 py-3 flex items-center gap-2">
                 <AlertCircle size={16} className="text-red-400 shrink-0" />
                 <span className="text-red-300 text-sm">
-                  You're too far from the site. Move closer and tap "Retry Location".
+                  You're too far from the site. Move closer and retry.
                 </span>
               </div>
             )}
@@ -244,18 +281,31 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
                 >
                   <MapPin size={16} /> Retry Location
                 </button>
+              ) : !faceVerified ? (
+                <button
+                  onClick={() => setStep('face')}
+                  className="flex-1 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold flex items-center justify-center gap-2"
+                >
+                  <ScanFace size={16} /> Retry Face ID
+                </button>
               ) : (
                 <button
                   onClick={handleConfirm}
-                  disabled={submitting}
-                  className={`flex-1 py-3.5 rounded-xl font-semibold text-white flex items-center justify-center gap-2 ${action === 'in' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} disabled:opacity-50`}
+                  className={`flex-1 py-3.5 rounded-xl font-semibold text-white flex items-center justify-center gap-2 ${action === 'in' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
                 >
-                  {submitting ? <Loader size={16} className="animate-spin" /> : null}
                   Confirm Clock {action === 'in' ? 'In' : 'Out'}
                 </button>
               )}
             </div>
           </>
+        )}
+
+        {/* ── Step: submitting ── */}
+        {step === 'submitting' && (
+          <div className="text-center py-8">
+            <Loader size={40} className="animate-spin text-brand-400 mx-auto mb-4" />
+            <p className="text-white font-medium">Recording your clock {action}...</p>
+          </div>
         )}
 
         {/* ── Step: success ── */}
@@ -266,10 +316,13 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
             <p className="text-white/50 mt-1">
               {action === 'out' && result?.hours_worked
                 ? `${result.hours_worked}h worked today`
-                : `Shift started at ${format(new Date(), 'h:mm a')}`}
+                : `Shift started at ${result?.clocked_in_at ? format(new Date(result.clocked_in_at), 'h:mm a') : format(new Date(), 'h:mm a')}`}
             </p>
-            {faceVerified && <p className="text-green-400/70 text-xs mt-2 flex items-center justify-center gap-1"><ScanFace size={12} />Face ID verified</p>}
-            {action === 'out' && <p className="text-green-400/70 text-sm mt-2">Timesheet draft created — submit when ready</p>}
+            <div className="flex items-center justify-center gap-3 mt-3">
+              <span className="text-green-400/70 text-xs flex items-center gap-1"><MapPin size={12} />Location verified</span>
+              <span className="text-green-400/70 text-xs flex items-center gap-1"><ScanFace size={12} />Face ID verified</span>
+            </div>
+            {action === 'out' && <p className="text-green-400/70 text-sm mt-3">Timesheet draft created — submit when ready</p>}
             <button onClick={onClose} className="mt-6 w-full py-3.5 rounded-xl bg-brand-600 text-white font-semibold">Done</button>
           </div>
         )}
@@ -278,7 +331,7 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
         {step === 'error' && (
           <div className="text-center py-6">
             <AlertCircle size={48} className="text-red-400 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-white">Something went wrong</h2>
+            <h2 className="text-xl font-bold text-white">Clock {action === 'in' ? 'In' : 'Out'} Failed</h2>
             <p className="text-red-400 text-sm mt-2">{error}</p>
             <div className="flex gap-3 mt-6">
               <button onClick={onClose} className="flex-1 py-3.5 rounded-xl border border-white/10 text-white/60">Close</button>

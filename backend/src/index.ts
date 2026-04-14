@@ -5,7 +5,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import cron from 'node-cron'
-import { initSchema, query } from './db/schema'
+import { initSchema, query, PgRateLimitStore } from './db/schema'
 import { seed } from './db/seed'
 import guardsRouter from './routes/guards'
 import clientsRouter from './routes/clients'
@@ -20,11 +20,22 @@ import guardShiftsRouter from './routes/guardShifts'
 import guardTimesheetsRouter from './routes/guardTimesheets'
 import guardMessagesRouter from './routes/guardMessages'
 import guardProfileRouter from './routes/guardProfile'
-import adminAuthRouter, { ensureDefaultAdmin } from './routes/adminAuth'
+import adminAuthRouter, { ensureDefaultAdmin, requireAdmin } from './routes/adminAuth'
 import { runDailyAlerts } from './services/alerts'
 import complianceRouter from './routes/compliance'
 import aiReportRouter from './routes/aiReport'
 import clientPortalRouter from './routes/clientPortal'
+import pushRouter from './routes/push'
+import adminMessagesRouter from './routes/adminMessages'
+import { notifyGuard } from './services/push'
+
+// ── Environment validation (fail fast if critical vars are missing) ────────
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET']
+const missingEnv = REQUIRED_ENV.filter(k => !process.env[k])
+if (missingEnv.length > 0) {
+  console.error(`Missing required environment variables: ${missingEnv.join(', ')}`)
+  process.exit(1)
+}
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -62,12 +73,25 @@ app.use(cors({
 // Reduce body limit — face descriptors are ~1 KB, normal requests much less
 app.use(express.json({ limit: '512kb' }))
 
-// ── Rate limiting ──────────────────────────────────────────────────────────
+// ── Rate limiting (PostgreSQL-backed — enforced across all instances) ─────────
+// Key by email for auth endpoints — prevents brute force even under CGNAT/dynamic IPs.
+// Falls back to req.ip if email not provided.
+const authKeyByEmail = (req: Request) => {
+  const email = req.body?.email
+  return email ? `auth_email::${String(email).toLowerCase().slice(0, 254)}` : `auth_ip::${req.ip}`
+}
+const resetKeyByEmail = (req: Request) => {
+  const email = req.body?.email
+  return email ? `reset_email::${String(email).toLowerCase().slice(0, 254)}` : `reset_ip::${req.ip}`
+}
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: authKeyByEmail,
+  store: new PgRateLimitStore(15 * 60 * 1000),
   message: { error: 'Too many login attempts — please try again in 15 minutes' },
 })
 // Stricter limit for password reset — prevents token enumeration & email flooding
@@ -76,33 +100,72 @@ const resetLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: resetKeyByEmail,
+  store: new PgRateLimitStore(60 * 60 * 1000),
   message: { error: 'Too many password reset requests — please try again in an hour' },
 })
-app.use('/api/auth/login',              authLimiter)
-app.use('/api/admin/auth/login',        authLimiter)
-app.use('/api/auth/forgot-password',    resetLimiter)
-app.use('/api/auth/reset-password',     resetLimiter)
-app.use('/api/admin/auth/forgot-password', resetLimiter)
-app.use('/api/admin/auth/reset-password',  resetLimiter)
+// Per-guard clock event limiter — keyed by guard JWT (req.ip fallback)
+const clockLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new PgRateLimitStore(15 * 60 * 1000),
+  message: { error: 'Too many clock requests — please wait before trying again' },
+})
+// Biometric & password change limiter — expensive operations, low legitimate frequency
+const sensitiveLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new PgRateLimitStore(15 * 60 * 1000),
+  message: { error: 'Too many requests — please try again shortly' },
+})
+
+// Portal token lookup — strict limit to prevent brute-force token enumeration
+const portalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: new PgRateLimitStore(15 * 60 * 1000),
+  message: { error: 'Too many requests — please try again shortly' },
+})
+app.use('/api/portal/:token', portalLimiter)
+
+app.use('/api/auth/login',                        authLimiter)
+app.use('/api/admin/auth/login',                  authLimiter)
+app.use('/api/auth/forgot-password',              resetLimiter)
+app.use('/api/auth/reset-password',               resetLimiter)
+app.use('/api/admin/auth/forgot-password',        resetLimiter)
+app.use('/api/admin/auth/reset-password',         resetLimiter)
+app.use('/api/auth/change-password',              sensitiveLimiter)
+app.use('/api/guard/shifts/clock-in',             clockLimiter)
+app.use('/api/guard/shifts/clock-out',            clockLimiter)
+app.use('/api/guard/profile/face-descriptor',     sensitiveLimiter)
 
 // ── Routes ────────────────────────────────────────────────────────────────
 app.use('/api/admin/auth', adminAuthRouter)
-app.use('/api/guards', guardsRouter)
-app.use('/api/clients', clientsRouter)
-app.use('/api/sites', sitesRouter)
-app.use('/api/shifts', shiftsRouter)
-app.use('/api/timesheets', timesheetsRouter)
-app.use('/api/payroll', payrollRouter)
-app.use('/api/dashboard', dashboardRouter)
-app.use('/api/incidents', incidentsRouter)
-app.use('/api/compliance', complianceRouter)
-app.use('/api/ai', aiReportRouter)
+// All admin data routes require a valid admin JWT
+app.use('/api/guards',     requireAdmin, guardsRouter)
+app.use('/api/clients',    requireAdmin, clientsRouter)
+app.use('/api/sites',      requireAdmin, sitesRouter)
+app.use('/api/shifts',     requireAdmin, shiftsRouter)
+app.use('/api/timesheets', requireAdmin, timesheetsRouter)
+app.use('/api/payroll',    requireAdmin, payrollRouter)
+app.use('/api/dashboard',  requireAdmin, dashboardRouter)
+app.use('/api/incidents',  requireAdmin, incidentsRouter)
+app.use('/api/compliance', requireAdmin, complianceRouter)
+app.use('/api/ai',         requireAdmin, aiReportRouter)
 app.use('/api/portal', clientPortalRouter)
 app.use('/api/auth', authRouter)
 app.use('/api/guard/shifts', guardShiftsRouter)
 app.use('/api/guard/timesheets', guardTimesheetsRouter)
 app.use('/api/guard/messages', guardMessagesRouter)
 app.use('/api/guard/profile', guardProfileRouter)
+app.use('/api/guard/push',    pushRouter)
+app.use('/api/messages',      requireAdmin, adminMessagesRouter)
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
@@ -146,6 +209,113 @@ async function start() {
     runDailyAlerts().catch(e => console.error('[Alerts] cron error:', e))
   })
   console.log('Daily alerts cron scheduled (08:00 daily)')
+
+  // ── Push notification crons ────────────────────────────────────────────────
+
+  // Clock-in reminders — every 5 minutes, for shifts starting in 25-35 min
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const { rows } = await query(`
+        SELECT sh.id, sh.guard_id, sh.start_time, s.name as site_name
+        FROM shifts sh
+        JOIN sites s ON s.id = sh.site_id
+        WHERE sh.status = 'assigned'
+          AND sh.guard_id IS NOT NULL
+          AND sh.start_time BETWEEN NOW() + INTERVAL '25 minutes' AND NOW() + INTERVAL '35 minutes'
+      `)
+      for (const sh of rows) {
+        const { format: fmt } = await import('date-fns')
+        const when = fmt(new Date(sh.start_time), 'HH:mm')
+        await notifyGuard(sh.guard_id, {
+          title: 'Shift Starting Soon',
+          body: `Clock in for your shift at ${sh.site_name} starting at ${when}`,
+          url: '/',
+          tag: `clock-in-reminder-${sh.id}`,
+          urgency: 'high',
+        })
+      }
+      if (rows.length > 0) console.log(`[Push] Clock-in reminders sent: ${rows.length}`)
+    } catch (e: any) { console.error('[Push] Clock-in cron error:', e.message) }
+  })
+
+  // Clock-out reminders — every 5 minutes, for shifts ending in 10-20 min
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const { rows } = await query(`
+        SELECT sh.id, sh.guard_id, sh.end_time, s.name as site_name
+        FROM shifts sh
+        JOIN sites s ON s.id = sh.site_id
+        WHERE sh.status = 'in-progress'
+          AND sh.guard_id IS NOT NULL
+          AND sh.end_time BETWEEN NOW() + INTERVAL '10 minutes' AND NOW() + INTERVAL '20 minutes'
+      `)
+      for (const sh of rows) {
+        const { format: fmt } = await import('date-fns')
+        const when = fmt(new Date(sh.end_time), 'HH:mm')
+        await notifyGuard(sh.guard_id, {
+          title: 'Shift Ending Soon',
+          body: `Your shift at ${sh.site_name} ends at ${when} — remember to clock out`,
+          url: '/',
+          tag: `clock-out-reminder-${sh.id}`,
+          urgency: 'high',
+        })
+      }
+      if (rows.length > 0) console.log(`[Push] Clock-out reminders sent: ${rows.length}`)
+    } catch (e: any) { console.error('[Push] Clock-out cron error:', e.message) }
+  })
+
+  // Hourly check prompts — every hour on the hour, for all in-progress shifts
+  cron.schedule('0 * * * *', async () => {
+    try {
+      const { rows } = await query(`
+        SELECT sh.id, sh.guard_id, s.name as site_name
+        FROM shifts sh
+        JOIN sites s ON s.id = sh.site_id
+        WHERE sh.status = 'in-progress'
+          AND sh.guard_id IS NOT NULL
+          AND sh.start_time <= NOW()
+          AND sh.end_time   >= NOW()
+      `)
+      for (const sh of rows) {
+        await notifyGuard(sh.guard_id, {
+          title: 'Hourly Site Check',
+          body: `Complete your hourly check report for ${sh.site_name}`,
+          url: '/',
+          tag: `hourly-check-${sh.id}`,
+          urgency: 'normal',
+        })
+      }
+      if (rows.length > 0) console.log(`[Push] Hourly check prompts sent: ${rows.length}`)
+    } catch (e: any) { console.error('[Push] Hourly check cron error:', e.message) }
+  })
+
+  // Missed clock-in alert — every 10 minutes, for shifts that started >15 min ago without clock-in
+  cron.schedule('*/10 * * * *', async () => {
+    try {
+      const { rows } = await query(`
+        SELECT sh.id, sh.guard_id, sh.start_time, s.name as site_name
+        FROM shifts sh
+        JOIN sites s ON s.id = sh.site_id
+        WHERE sh.status = 'assigned'
+          AND sh.guard_id IS NOT NULL
+          AND sh.start_time BETWEEN NOW() - INTERVAL '60 minutes' AND NOW() - INTERVAL '15 minutes'
+      `)
+      for (const sh of rows) {
+        const { format: fmt } = await import('date-fns')
+        const when = fmt(new Date(sh.start_time), 'HH:mm')
+        await notifyGuard(sh.guard_id, {
+          title: 'Missed Clock-In',
+          body: `Your shift at ${sh.site_name} started at ${when} — please clock in immediately`,
+          url: '/',
+          tag: `missed-clock-in-${sh.id}`,
+          urgency: 'critical',
+        })
+      }
+      if (rows.length > 0) console.log(`[Push] Missed clock-in alerts sent: ${rows.length}`)
+    } catch (e: any) { console.error('[Push] Missed clock-in cron error:', e.message) }
+  })
+
+  console.log('Push notification crons scheduled')
 
   app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`GuardOps API running on port ${PORT}`)

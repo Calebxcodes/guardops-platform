@@ -67,8 +67,8 @@ export const timesheetsApi = {
 
 export const payrollApi = {
   list:     (params?: any)               => api.get('/payroll', { params }).then(r => r.data),
-  generate: (period_start: string, period_end: string) =>
-    api.post('/payroll/generate', { period_start, period_end }).then(r => r.data),
+  generate: (period_start: string, period_end: string, tax_rate?: number) =>
+    api.post('/payroll/generate', { period_start, period_end, tax_rate }).then(r => r.data),
   update:   (id: number, data: any)      => api.put(`/payroll/${id}`, data).then(r => r.data),
 }
 
@@ -98,6 +98,14 @@ export const adminAuthApi = {
     api.post('/admin/auth/forgot-password', { email }).then(r => r.data),
   resetPassword: (token: string, new_password: string) =>
     api.post('/admin/auth/reset-password', { token, new_password }).then(r => r.data),
+}
+
+export const messagesApi = {
+  list: () => api.get('/messages').then(r => r.data),
+  send: (to_guard_id: number, body: string) =>
+    api.post('/messages/send', { to_guard_id, body }).then(r => r.data),
+  broadcast: (body: string) =>
+    api.post('/messages/send', { body, is_broadcast: true }).then(r => r.data),
 }
 
 export const portalApi = {

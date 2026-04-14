@@ -24,5 +24,5 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
 }
 
 export function signToken(guardId: number, email: string) {
-  return jwt.sign({ guardId, email }, JWT_SECRET, { expiresIn: '12h' })
+  return jwt.sign({ guardId, email }, JWT_SECRET, { expiresIn: '4h' })
 }

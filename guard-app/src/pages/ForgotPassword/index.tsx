@@ -29,7 +29,7 @@ export default function ForgotPassword() {
         <div className="w-20 h-20 bg-brand-900 border-2 border-brand-600 rounded-3xl flex items-center justify-center mb-4 shadow-2xl shadow-brand-900/50">
           <Shield size={40} className="text-brand-400" />
         </div>
-        <h1 className="text-3xl font-bold text-white tracking-tight">Strondis</h1>
+        <h1 className="text-3xl font-bold text-white tracking-tight">Strondis Guard</h1>
         <p className="text-white/40 text-sm mt-1">Reset your password</p>
       </div>
 

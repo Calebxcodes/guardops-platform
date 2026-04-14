@@ -13,9 +13,11 @@ import Settings from './pages/Settings'
 import Compliance from './pages/Compliance'
 import ClientPortalAdmin from './pages/ClientPortal'
 import PortalView from './pages/ClientPortal/PortalView'
+import Messages from './pages/Messages'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import { useAuthStore } from './store/authStore'
+import CookieConsent from './components/CookieConsent'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore(s => s.token)
@@ -25,6 +27,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <CookieConsent />
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
@@ -44,6 +47,7 @@ export default function App() {
           <Route path="incidents" element={<Incidents />} />
           <Route path="compliance" element={<Compliance />} />
           <Route path="portal" element={<ClientPortalAdmin />} />
+          <Route path="messages" element={<Messages />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

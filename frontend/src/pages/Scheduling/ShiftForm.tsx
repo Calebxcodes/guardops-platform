@@ -34,7 +34,17 @@ export default function ShiftForm({ initialStart, initialEnd, sites, guards, onS
   }
 
   return (
-    <form onSubmit={e => { e.preventDefault(); onSave({ ...form, guard_id: form.guard_id || null }) }} className="space-y-4">
+    <form onSubmit={e => {
+      e.preventDefault()
+      onSave({
+        ...form,
+        guard_id: form.guard_id || null,
+        // Convert browser-local datetime-local value to UTC ISO string so the
+        // backend stores the correct instant regardless of server timezone
+        start_time: form.start_time ? new Date(form.start_time).toISOString() : form.start_time,
+        end_time:   form.end_time   ? new Date(form.end_time).toISOString()   : form.end_time,
+      })
+    }} className="space-y-4">
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
           <AlertCircle size={14} /> {error}

@@ -1,11 +1,16 @@
 import { Router, Request, Response } from 'express'
 import { query } from '../db/schema'
+import { requireAdmin } from './adminAuth'
 import crypto from 'crypto'
 
 const router = Router()
 
-router.post('/generate', async (req: Request, res: Response) => {
+// ── Admin-only: manage portal tokens ──────────────────────────────────────
+router.post('/generate', requireAdmin, async (req: Request, res: Response) => {
   const { client_id, label } = req.body
+  if (!client_id || !Number.isInteger(Number(client_id))) {
+    return res.status(400).json({ error: 'Valid client_id required' })
+  }
   const { rows } = await query('SELECT * FROM clients WHERE id = $1', [client_id])
   if (!rows[0]) return res.status(404).json({ error: 'Client not found' })
 
@@ -14,20 +19,26 @@ router.post('/generate', async (req: Request, res: Response) => {
   res.json({ token, url: `/portal/${token}` })
 })
 
-router.get('/tokens/:clientId', async (req: Request, res: Response) => {
+router.get('/tokens/:clientId', requireAdmin, async (req: Request, res: Response) => {
   const { rows } = await query(
-    'SELECT * FROM client_portal_tokens WHERE client_id = $1 ORDER BY created_at DESC',
+    'SELECT id, client_id, token, label, active, created_at FROM client_portal_tokens WHERE client_id = $1 ORDER BY created_at DESC',
     [req.params.clientId]
   )
   res.json(rows)
 })
 
-router.delete('/tokens/:tokenId', async (req: Request, res: Response) => {
+router.delete('/tokens/:tokenId', requireAdmin, async (req: Request, res: Response) => {
   await query('UPDATE client_portal_tokens SET active = 0 WHERE id = $1', [req.params.tokenId])
   res.json({ success: true })
 })
 
+// ── Public: read-only portal view (requires valid portal token) ────────────
 router.get('/:token', async (req: Request, res: Response) => {
+  // Validate token format before hitting DB (32-byte hex = 64 chars)
+  if (!/^[0-9a-f]{64}$/.test(req.params.token)) {
+    return res.status(401).json({ error: 'Invalid portal link' })
+  }
+
   const { rows: tokenRows } = await query(
     'SELECT * FROM client_portal_tokens WHERE token = $1 AND active = 1',
     [req.params.token]

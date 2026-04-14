@@ -4,6 +4,7 @@ import { payrollApi } from '../../api'
 import StatusBadge from '../../components/StatusBadge'
 import { format } from 'date-fns'
 import { Download, RefreshCw, PoundSterling, AlertCircle } from 'lucide-react'
+import { loadSettings } from '../../hooks/useSettings'
 
 export default function Payroll() {
   const [records, setRecords] = useState<PayrollRecord[]>([])
@@ -27,7 +28,8 @@ export default function Payroll() {
     if (!periodStart || !periodEnd) { setError('Select a period'); return }
     setGenerating(true); setError(''); setSuccess('')
     try {
-      const result = await payrollApi.generate(periodStart, periodEnd)
+      const { tax_rate } = loadSettings()
+      const result = await payrollApi.generate(periodStart, periodEnd, tax_rate)
       setSuccess(`Generated ${result.generated} payroll record(s)`)
       load(1)
     } catch (e: any) {

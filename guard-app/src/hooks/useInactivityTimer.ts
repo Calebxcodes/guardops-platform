@@ -57,9 +57,27 @@ export function useInactivityTimer({ onLogout, enabled }: UseInactivityTimerOpti
     }
     ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, handler, { passive: true }))
     resetTimer()
+
+    // Tab visibility — if the tab is hidden for ≥30 min, log out immediately on return
+    let hiddenAt: number | null = null
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now()
+      } else if (document.visibilityState === 'visible' && hiddenAt !== null) {
+        if (Date.now() - hiddenAt >= INACTIVE_MS) {
+          clearAll()
+          onLogout()
+        } else {
+          hiddenAt = null
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
     return () => {
       clearAll()
       ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, handler))
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled])

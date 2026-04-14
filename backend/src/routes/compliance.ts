@@ -11,23 +11,57 @@ router.get('/sia', async (req: Request, res: Response) => {
     ORDER BY g.last_name, g.first_name
   `) as { rows: any[] }
 
+  // Exact set of valid SIA licence types (matches the dropdown in GuardForm)
+  const SIA_LICENCE_TYPES = new Set([
+    'door supervisor',
+    'security guard',
+    'cctv operator (public space surveillance)',
+    'close protection officer',
+    'cash and valuables in transit guard',
+    'key holder',
+    'vehicle immobiliser',
+    'maritime security guard',
+    'first aid at work certificate',
+    'emergency first response',
+    'level 2 award for door supervisors',
+    'level 3 award for close protection',
+    'counter terrorism awareness certificate',
+    'sia approved contractor scheme (acs)',
+    'national cctv viewer certificate',
+  ])
+
   const today = new Date()
   const result = guards.map(g => {
     const certs = JSON.parse(g.certifications || '[]')
-    const siaCert = certs.find((c: any) =>
-      c.name?.toLowerCase().includes('sia') ||
-      c.name?.toLowerCase().includes('door supervisor') ||
-      c.name?.toLowerCase().includes('security guard license') ||
-      c.name?.toLowerCase().includes('security guard licence')
+
+    // Find all certs that match a recognised SIA licence type
+    const siaCerts: any[] = certs.filter((c: any) =>
+      SIA_LICENCE_TYPES.has(c.name?.toLowerCase().trim() || '')
     )
+
+    // Pick the cert with the latest expiry (most favourable) — falls back to first match
+    const siaCert = siaCerts.length === 0 ? null
+      : siaCerts.reduce((best: any, c: any) => {
+          if (!best) return c
+          if (!best.expiry) return c
+          if (!c.expiry) return best
+          return new Date(c.expiry) > new Date(best.expiry) ? c : best
+        }, null)
     const expiry = siaCert?.expiry ? new Date(siaCert.expiry) : null
     const daysLeft = expiry ? Math.floor((expiry.getTime() - today.getTime()) / 86400000) : null
 
     let siaStatus: 'valid' | 'expiring_soon' | 'expired' | 'missing' = 'missing'
-    if (expiry) {
-      if (daysLeft! < 0) siaStatus = 'expired'
-      else if (daysLeft! <= 90) siaStatus = 'expiring_soon'
-      else siaStatus = 'valid'
+    if (siaCert) {
+      if (!expiry) {
+        // Cert is on file but no expiry recorded — treat as valid (no-expiry cert)
+        siaStatus = 'valid'
+      } else if (daysLeft! < 0) {
+        siaStatus = 'expired'
+      } else if (daysLeft! <= 90) {
+        siaStatus = 'expiring_soon'
+      } else {
+        siaStatus = 'valid'
+      }
     }
 
     return {
@@ -37,6 +71,7 @@ router.get('/sia', async (req: Request, res: Response) => {
       phone: g.phone,
       status: g.status,
       sia_cert_name: siaCert?.name || null,
+      sia_licence_number: siaCert?.licence_number || null,
       sia_expiry: siaCert?.expiry || null,
       days_until_expiry: daysLeft,
       sia_status: siaStatus,
