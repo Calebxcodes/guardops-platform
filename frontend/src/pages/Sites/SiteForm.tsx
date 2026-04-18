@@ -13,6 +13,7 @@ export default function SiteForm({ site, clients, onSave, onCancel }: Props) {
     address:         site?.address       || '',
     lat:             site?.lat           ?? null as number | null,
     lng:             site?.lng           ?? null as number | null,
+    geofence_radius: site?.geofence_radius ?? 183,
     requirements:    site?.requirements  || '',
     post_orders:     site?.post_orders   || '',
     guards_required: site?.guards_required || 1,
@@ -109,6 +110,27 @@ export default function SiteForm({ site, clients, onSave, onCancel }: Props) {
             <MapPin size={11} />
             Location found: {form.lat.toFixed(5)}, {form.lng?.toFixed(5)} — geofencing enabled
           </p>
+        )}
+
+        {/* Geofence radius — only shown when site has coordinates */}
+        {geoStatus === 'found' && form.lat != null && (
+          <div className="mt-3">
+            <label className="label">Geofence Radius (metres)</label>
+            <div className="flex items-center gap-3">
+              <input
+                className="input w-28"
+                type="number"
+                min="50"
+                max="5000"
+                step="10"
+                value={form.geofence_radius}
+                onChange={e => set('geofence_radius', parseInt(e.target.value) || 183)}
+              />
+              <span className="text-xs text-gray-400">
+                ≈ {Math.round(form.geofence_radius * 1.09361)} yards — guards must be within this distance to clock in/out
+              </span>
+            </div>
+          </div>
         )}
         {geoStatus === 'error' && (
           <p className="text-xs text-orange-500 mt-1 flex items-center gap-1">

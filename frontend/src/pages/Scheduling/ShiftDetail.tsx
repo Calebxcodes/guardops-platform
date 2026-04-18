@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Shift, Site, Guard } from '../../types'
 import StatusBadge from '../../components/StatusBadge'
 import { format } from 'date-fns'
@@ -8,6 +8,7 @@ interface Props {
   shift: Shift
   sites: Site[]
   guards: Guard[]
+  shifts: Shift[]
   onSave: (data: any) => void
   onDelete: () => void
   onCancel: () => void
@@ -16,7 +17,7 @@ interface Props {
 
 const toLocal = (s: string) => format(new Date(s), "yyyy-MM-dd'T'HH:mm")
 
-export default function ShiftDetail({ shift, sites, guards, onSave, onDelete, onCancel, error }: Props) {
+export default function ShiftDetail({ shift, sites, guards, shifts, onSave, onDelete, onCancel, error }: Props) {
   const [form, setForm] = useState({
     site_id: shift.site_id,
     guard_id: shift.guard_id || '',
@@ -28,6 +29,25 @@ export default function ShiftDetail({ shift, sites, guards, onSave, onDelete, on
     notes: shift.notes || '',
   })
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }))
+
+  // Guards with a conflicting shift — exclude the shift being edited
+  const busyGuardIds = useMemo(() => {
+    if (!form.start_time || !form.end_time) return new Set<number>()
+    const selStart = new Date(form.start_time).getTime()
+    const selEnd   = new Date(form.end_time).getTime()
+    if (isNaN(selStart) || isNaN(selEnd) || selStart >= selEnd) return new Set<number>()
+    return new Set(
+      shifts
+        .filter(s =>
+          s.id !== shift.id &&
+          s.guard_id != null &&
+          !['cancelled', 'completed'].includes(s.status) &&
+          new Date(s.start_time).getTime() < selEnd &&
+          new Date(s.end_time).getTime()   > selStart
+        )
+        .map(s => s.guard_id!)
+    )
+  }, [shifts, shift.id, form.start_time, form.end_time])
 
   const durationHours = ((new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / 3600000).toFixed(1)
 
@@ -63,10 +83,21 @@ export default function ShiftDetail({ shift, sites, guards, onSave, onDelete, on
           <label className="label">Guard</label>
           <select className="input" value={form.guard_id} onChange={e => set('guard_id', e.target.value)}>
             <option value="">Unassigned</option>
-            {guards.filter(g => g.status !== 'inactive').map(g => (
-              <option key={g.id} value={g.id}>{g.first_name} {g.last_name}</option>
-            ))}
+            {guards.filter(g => g.status !== 'inactive').map(g => {
+              const busy = busyGuardIds.has(g.id)
+              return (
+                <option key={g.id} value={g.id} disabled={busy}>
+                  {busy ? '⚠ ' : ''}{g.first_name} {g.last_name}{busy ? ' (already scheduled)' : ''}
+                </option>
+              )
+            })}
           </select>
+          {busyGuardIds.size > 0 && (
+            <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+              <AlertCircle size={11} />
+              {busyGuardIds.size} guard{busyGuardIds.size > 1 ? 's' : ''} already scheduled during this time
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>

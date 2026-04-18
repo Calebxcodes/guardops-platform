@@ -5,7 +5,7 @@ import { query, auditLog } from '../db/schema'
 const router = Router()
 router.use(requireAuth)
 
-const GEOFENCE_METERS = 183 // 200 yards
+const DEFAULT_GEOFENCE_METERS = 183 // 200 yards — used when site has no configured radius
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000
@@ -20,7 +20,7 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
 router.get('/today', async (req: AuthRequest, res: Response) => {
   const { rows } = await query(`
     SELECT sh.*, s.name as site_name, s.address as site_address, s.lat, s.lng,
-      s.requirements, s.post_orders, c.name as client_name, c.contact_phone as site_phone
+      s.geofence_radius, s.requirements, s.post_orders, c.name as client_name, c.contact_phone as site_phone
     FROM shifts sh
     JOIN sites s ON s.id = sh.site_id
     JOIN clients c ON c.id = s.client_id
@@ -60,10 +60,11 @@ router.post('/clock-in', async (req: AuthRequest, res: Response) => {
   const { shift_id, lat, lng, accuracy, photo_url, notes, face_verified } = req.body
 
   const { rows: shiftRows } = await query(`
-    SELECT sh.*, s.lat as site_lat, s.lng as site_lng, s.name as site_name
+    SELECT sh.*, s.lat as site_lat, s.lng as site_lng, s.name as site_name,
+      COALESCE(s.geofence_radius, $3) as geofence_radius
     FROM shifts sh JOIN sites s ON s.id = sh.site_id
     WHERE sh.id = $1 AND sh.guard_id = $2
-  `, [shift_id, req.guardId])
+  `, [shift_id, req.guardId, DEFAULT_GEOFENCE_METERS])
   const shift = shiftRows[0]
   if (!shift) return res.status(404).json({ error: 'Shift not found' })
   if (shift.status === 'active') return res.status(409).json({ error: 'Already clocked in' })
@@ -71,6 +72,7 @@ router.post('/clock-in', async (req: AuthRequest, res: Response) => {
   // Geofence check — only enforced when the site has coordinates
   const siteLat = shift.site_lat != null ? parseFloat(shift.site_lat) : null
   const siteLng = shift.site_lng != null ? parseFloat(shift.site_lng) : null
+  const geofenceMeters = parseInt(shift.geofence_radius) || DEFAULT_GEOFENCE_METERS
   if (siteLat != null && siteLng != null && !isNaN(siteLat) && !isNaN(siteLng)) {
     if (lat == null || lng == null) {
       return res.status(403).json({ error: 'Location required to clock in at this site. Please enable GPS and try again.' })
@@ -79,11 +81,13 @@ router.post('/clock-in', async (req: AuthRequest, res: Response) => {
     const guardLng = parseFloat(lng)
     const accuracyBuffer = Math.min(parseFloat(accuracy) || 0, 80) // account for GPS imprecision, cap 80m
     const dist = Math.round(haversineMeters(guardLat, guardLng, siteLat, siteLng))
-    if (dist > GEOFENCE_METERS + accuracyBuffer) {
+    if (dist > geofenceMeters + accuracyBuffer) {
       const yards = Math.round(dist * 1.09361)
+      const allowedYards = Math.round(geofenceMeters * 1.09361)
       return res.status(403).json({
-        error: `You are ${yards} yards from ${shift.site_name}. You must be within 200 yards to clock in.`,
+        error: `You are ${yards} yards from ${shift.site_name}. You must be within ${allowedYards} yards to clock in.`,
         distance_meters: dist,
+        geofence_meters: geofenceMeters,
         debug: { guard: { lat: guardLat, lng: guardLng }, site: { lat: siteLat, lng: siteLng }, accuracy_buffer: accuracyBuffer },
       })
     }
@@ -125,16 +129,18 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
   const { shift_id, lat, lng, accuracy, photo_url, notes, face_verified } = req.body
 
   const { rows: shiftRows } = await query(`
-    SELECT sh.*, s.lat as site_lat, s.lng as site_lng, s.name as site_name
+    SELECT sh.*, s.lat as site_lat, s.lng as site_lng, s.name as site_name,
+      COALESCE(s.geofence_radius, $3) as geofence_radius
     FROM shifts sh JOIN sites s ON s.id = sh.site_id
     WHERE sh.id = $1 AND sh.guard_id = $2
-  `, [shift_id, req.guardId])
+  `, [shift_id, req.guardId, DEFAULT_GEOFENCE_METERS])
   if (!shiftRows[0]) return res.status(404).json({ error: 'Shift not found' })
 
   // Geofence check
   const shift = shiftRows[0]
   const siteLat = shift.site_lat != null ? parseFloat(shift.site_lat) : null
   const siteLng = shift.site_lng != null ? parseFloat(shift.site_lng) : null
+  const geofenceMeters = parseInt(shift.geofence_radius) || DEFAULT_GEOFENCE_METERS
   if (siteLat != null && siteLng != null && !isNaN(siteLat) && !isNaN(siteLng)) {
     if (lat == null || lng == null) {
       return res.status(403).json({ error: 'Location required to clock out at this site. Please enable GPS and try again.' })
@@ -143,11 +149,13 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
     const guardLng = parseFloat(lng)
     const accuracyBuffer = Math.min(parseFloat(accuracy) || 0, 80)
     const dist = Math.round(haversineMeters(guardLat, guardLng, siteLat, siteLng))
-    if (dist > GEOFENCE_METERS + accuracyBuffer) {
+    if (dist > geofenceMeters + accuracyBuffer) {
       const yards = Math.round(dist * 1.09361)
+      const allowedYards = Math.round(geofenceMeters * 1.09361)
       return res.status(403).json({
-        error: `You are ${yards} yards from ${shift.site_name}. You must be within 200 yards to clock out.`,
+        error: `You are ${yards} yards from ${shift.site_name}. You must be within ${allowedYards} yards to clock out.`,
         distance_meters: dist,
+        geofence_meters: geofenceMeters,
         debug: { guard: { lat: guardLat, lng: guardLng }, site: { lat: siteLat, lng: siteLng }, accuracy_buffer: accuracyBuffer },
       })
     }

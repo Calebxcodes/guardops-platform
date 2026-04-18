@@ -56,11 +56,13 @@ export default function Scheduling() {
   }))
 
   const handleSelectSlot = (slot: SlotInfo) => {
+    setError('')
     setSlotInfo({ start: slot.start, end: slot.end })
     setShowCreate(true)
   }
 
   const handleSelectEvent = (event: any) => {
+    setError('')
     setSelectedShift(event.resource)
     setShowDetail(true)
   }
@@ -160,28 +162,30 @@ export default function Scheduling() {
       </div>
 
       {showCreate && slotInfo && (
-        <Modal title="Create Shift" onClose={() => setShowCreate(false)} size="md">
+        <Modal title="Create Shift" onClose={() => { setShowCreate(false); setError('') }} size="md">
           <ShiftForm
             initialStart={slotInfo.start}
             initialEnd={slotInfo.end}
             sites={sites}
             guards={guards}
+            shifts={shifts}
             onSave={handleCreate}
-            onCancel={() => setShowCreate(false)}
+            onCancel={() => { setShowCreate(false); setError('') }}
             error={error}
           />
         </Modal>
       )}
 
       {showDetail && selectedShift && (
-        <Modal title="Shift Details" onClose={() => setShowDetail(false)} size="md">
+        <Modal title="Shift Details" onClose={() => { setShowDetail(false); setError('') }} size="md">
           <ShiftDetail
             shift={selectedShift}
             sites={sites}
             guards={guards}
+            shifts={shifts}
             onSave={(data) => handleUpdate(selectedShift.id, data)}
             onDelete={() => handleDelete(selectedShift.id)}
-            onCancel={() => setShowDetail(false)}
+            onCancel={() => { setShowDetail(false); setError('') }}
             error={error}
           />
         </Modal>

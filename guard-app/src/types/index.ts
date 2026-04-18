@@ -25,6 +25,7 @@ export interface GuardShift {
   site_phone?: string
   lat?: number
   lng?: number
+  geofence_radius?: number
   requirements?: string
   post_orders?: string
   start_time: string

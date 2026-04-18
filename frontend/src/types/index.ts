@@ -47,6 +47,7 @@ export interface Site {
   address?: string
   lat?: number
   lng?: number
+  geofence_radius?: number
   requirements?: string
   post_orders?: string
   guards_required: number

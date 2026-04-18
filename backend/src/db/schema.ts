@@ -210,6 +210,7 @@ export async function initSchema() {
   await pool.query(`
     ALTER TABLE guards ADD COLUMN IF NOT EXISTS face_descriptor TEXT;
     ALTER TABLE clock_events ADD COLUMN IF NOT EXISTS face_verified INTEGER DEFAULT 0;
+    ALTER TABLE sites ADD COLUMN IF NOT EXISTS geofence_radius INTEGER DEFAULT 183;
   `)
 
   // Hourly site checks table

@@ -1,3 +1,4 @@
+import './instrument' // must be first — patches pg/http before other imports
 import 'dotenv/config'
 import 'express-async-errors'
 import express, { Request, Response, NextFunction } from 'express'
@@ -28,6 +29,7 @@ import clientPortalRouter from './routes/clientPortal'
 import pushRouter from './routes/push'
 import adminMessagesRouter from './routes/adminMessages'
 import { notifyGuard } from './services/push'
+import * as Sentry from '@sentry/node'
 
 // ── Environment validation (fail fast if critical vars are missing) ────────
 const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET']
@@ -168,6 +170,9 @@ app.use('/api/guard/push',    pushRouter)
 app.use('/api/messages',      requireAdmin, adminMessagesRouter)
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
+
+// ── Sentry error handler (must come after routes, before custom handler) ─────
+Sentry.setupExpressErrorHandler(app)
 
 // ── Global error handler (catches all async throws via express-async-errors) ──
 app.use((err: any, req: Request, res: Response, _next: NextFunction) => {

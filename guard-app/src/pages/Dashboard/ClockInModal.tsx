@@ -7,8 +7,7 @@ import { format } from 'date-fns'
 import FaceCapture from '../../components/FaceCapture'
 import { useNavigate } from 'react-router-dom'
 
-const GEOFENCE_YARDS  = 200
-const GEOFENCE_METERS = 183
+const DEFAULT_GEOFENCE_METERS = 183
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000
@@ -41,12 +40,14 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
   const hasFaceId = guard?.has_face_id ?? false
 
   // Geofence (client-side preview — backend is authoritative)
+  const geofenceMeters = shift.geofence_radius ?? DEFAULT_GEOFENCE_METERS
+  const geofenceYards  = Math.round(geofenceMeters * 1.09361)
   const distanceMeters = location && shift.lat && shift.lng
     ? Math.round(haversineMeters(location.lat, location.lng, shift.lat, shift.lng))
     : null
   const distanceYards = distanceMeters !== null ? Math.round(distanceMeters * 1.09361) : null
   const siteHasCoords = !!(shift.lat && shift.lng)
-  const withinRange   = distanceMeters !== null ? distanceMeters <= GEOFENCE_METERS : !siteHasCoords
+  const withinRange   = distanceMeters !== null ? distanceMeters <= geofenceMeters : !siteHasCoords
 
   // Pre-fetch stored face descriptor as soon as modal opens (if enrolled)
   useEffect(() => {
@@ -240,7 +241,7 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
                           <span className="text-xs font-medium">
                             {withinRange
                               ? `${distanceYards} yds from site — within range ✓`
-                              : `${distanceYards} yds from site — must be within ${GEOFENCE_YARDS} yds`}
+                              : `${distanceYards} yds from site — must be within ${geofenceYards} yds`}
                           </span>
                         </div>
                       )}

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Site, Guard } from '../../types'
+import { useState, useMemo } from 'react'
+import { Site, Guard, Shift } from '../../types'
 import { format } from 'date-fns'
 import { AlertCircle } from 'lucide-react'
 
@@ -8,6 +8,7 @@ interface Props {
   initialEnd?: Date
   sites: Site[]
   guards: Guard[]
+  shifts: Shift[]
   onSave: (data: any) => void
   onCancel: () => void
   error?: string
@@ -15,7 +16,7 @@ interface Props {
 
 const toLocal = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm")
 
-export default function ShiftForm({ initialStart, initialEnd, sites, guards, onSave, onCancel, error }: Props) {
+export default function ShiftForm({ initialStart, initialEnd, sites, guards, shifts, onSave, onCancel, error }: Props) {
   const [form, setForm] = useState({
     site_id: '',
     guard_id: '',
@@ -32,6 +33,24 @@ export default function ShiftForm({ initialStart, initialEnd, sites, guards, onS
     set('site_id', siteId)
     if (site) set('hourly_rate', site.hourly_rate)
   }
+
+  // Guards with an overlapping non-cancelled shift for the selected time window
+  const busyGuardIds = useMemo(() => {
+    if (!form.start_time || !form.end_time) return new Set<number>()
+    const selStart = new Date(form.start_time).getTime()
+    const selEnd   = new Date(form.end_time).getTime()
+    if (isNaN(selStart) || isNaN(selEnd) || selStart >= selEnd) return new Set<number>()
+    return new Set(
+      shifts
+        .filter(s =>
+          s.guard_id != null &&
+          !['cancelled', 'completed'].includes(s.status) &&
+          new Date(s.start_time).getTime() < selEnd &&
+          new Date(s.end_time).getTime()   > selStart
+        )
+        .map(s => s.guard_id!)
+    )
+  }, [shifts, form.start_time, form.end_time])
 
   return (
     <form onSubmit={e => {
@@ -61,10 +80,21 @@ export default function ShiftForm({ initialStart, initialEnd, sites, guards, onS
         <label className="label">Assign Guard (optional)</label>
         <select className="input" value={form.guard_id} onChange={e => set('guard_id', e.target.value)}>
           <option value="">Leave unassigned</option>
-          {guards.filter(g => g.status !== 'inactive').map(g => (
-            <option key={g.id} value={g.id}>{g.first_name} {g.last_name} — £{g.hourly_rate}/hr</option>
-          ))}
+          {guards.filter(g => g.status !== 'inactive').map(g => {
+            const busy = busyGuardIds.has(g.id)
+            return (
+              <option key={g.id} value={g.id} disabled={busy}>
+                {busy ? '⚠ ' : ''}{g.first_name} {g.last_name} — £{g.hourly_rate}/hr{busy ? ' (already scheduled)' : ''}
+              </option>
+            )
+          })}
         </select>
+        {busyGuardIds.size > 0 && form.start_time && form.end_time && (
+          <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+            <AlertCircle size={11} />
+            {busyGuardIds.size} guard{busyGuardIds.size > 1 ? 's' : ''} already scheduled during this time
+          </p>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
