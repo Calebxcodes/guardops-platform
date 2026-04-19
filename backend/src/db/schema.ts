@@ -344,11 +344,11 @@ export async function initSchema() {
     CREATE INDEX IF NOT EXISTS incidents_resolved_idx ON incidents (resolved);
     CREATE INDEX IF NOT EXISTS incidents_created_idx  ON incidents (created_at DESC);
 
-    CREATE INDEX IF NOT EXISTS payroll_guard_idx      ON payroll (guard_id);
-    CREATE INDEX IF NOT EXISTS payroll_period_idx     ON payroll (period_start, period_end);
+    CREATE INDEX IF NOT EXISTS payroll_guard_idx      ON payroll_records (guard_id);
+    CREATE INDEX IF NOT EXISTS payroll_period_idx     ON payroll_records (period_start, period_end);
 
-    CREATE INDEX IF NOT EXISTS messages_guard_idx     ON messages (guard_id);
-    CREATE INDEX IF NOT EXISTS messages_read_at_idx   ON messages (read_at);
+    CREATE INDEX IF NOT EXISTS messages_from_guard_idx ON messages (from_guard_id);
+    CREATE INDEX IF NOT EXISTS messages_read_at_idx    ON messages (read_at);
 
     CREATE INDEX IF NOT EXISTS clock_events_shift_idx   ON clock_events (shift_id);
     CREATE INDEX IF NOT EXISTS shift_checks_shift_idx   ON shift_checks (shift_id);
