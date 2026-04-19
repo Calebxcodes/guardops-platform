@@ -59,12 +59,16 @@ export async function ensureDefaultAdmin() {
   console.warn('[SECURITY] Change the admin password immediately after first login.')
 }
 
+// ── Password login ────────────────────────────────────────────────────────────
+
 router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' })
   const { rows } = await query('SELECT * FROM admin_users WHERE email = $1', [email])
   const admin = rows[0]
   if (!admin) return res.status(401).json({ error: 'Invalid credentials' })
+  // OAuth-only admins have no password_hash set
+  if (!admin.password_hash) return res.status(401).json({ error: 'This account uses SSO — please sign in with Google or Microsoft' })
   const valid = await bcrypt.compare(password, admin.password_hash)
   if (!valid) {
     auditLog({ user_type: 'admin', action: 'login_failed', extra: { email }, ip_address: req.ip })
@@ -84,16 +88,15 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
   const { email } = req.body
   if (!email) return res.status(400).json({ error: 'Email required' })
 
-  const { rows: adminRows } = await query('SELECT id FROM admin_users WHERE email = $1', [email])
+  const { rows: adminRows } = await query('SELECT id, password_hash FROM admin_users WHERE email = $1', [email])
   // Always return 200 to prevent email enumeration
-  if (!adminRows[0]) return res.json({ message: 'If that email is registered, a reset link has been sent.' })
+  if (!adminRows[0] || !adminRows[0].password_hash) return res.json({ message: 'If that email is registered, a reset link has been sent.' })
 
   const token      = crypto.randomBytes(32).toString('hex')
   const tokenHash  = crypto.createHash('sha256').update(token).digest('hex')
   const expiresAt  = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
 
   await query(`UPDATE password_reset_tokens SET used = 1 WHERE user_type = 'admin' AND user_id = $1`, [adminRows[0].id])
-  // Store hash only — raw token travels only in the email link
   await query(
     `INSERT INTO password_reset_tokens (user_type, user_id, token, expires_at) VALUES ('admin', $1, $2, $3)`,
     [adminRows[0].id, tokenHash, expiresAt.toISOString()]
@@ -120,6 +123,216 @@ router.post('/reset-password', async (req: Request, res: Response) => {
   await query(`UPDATE password_reset_tokens SET used = 1 WHERE id = $1`, [rows[0].id])
   await query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [hash, rows[0].user_id])
   res.json({ message: 'Password updated successfully' })
+})
+
+// ── SSO config probe ──────────────────────────────────────────────────────────
+// Frontend calls this to know which SSO buttons to show
+router.get('/sso-config', (_req: Request, res: Response) => {
+  res.json({
+    google:    !!(process.env.GOOGLE_CLIENT_ID    && process.env.GOOGLE_REDIRECT_URI),
+    microsoft: !!(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_REDIRECT_URI),
+  })
+})
+
+// ── OAuth helpers ─────────────────────────────────────────────────────────────
+
+// Short-lived CSRF state tokens — in-memory, expires 10 minutes
+const oauthStates = new Map<string, number>() // state → createdAt ms
+
+function newState(): string {
+  const cutoff = Date.now() - 10 * 60 * 1000
+  for (const [k, v] of oauthStates) { if (v < cutoff) oauthStates.delete(k) }
+  const state = crypto.randomBytes(24).toString('hex')
+  oauthStates.set(state, Date.now())
+  return state
+}
+
+function consumeState(state: string): boolean {
+  if (!oauthStates.has(state)) return false
+  oauthStates.delete(state)
+  return true
+}
+
+// POST to an OAuth token endpoint (application/x-www-form-urlencoded)
+async function oauthPost(url: string, body: Record<string, string>): Promise<any> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+    body: new URLSearchParams(body).toString(),
+  })
+  const data = await res.json() as any
+  if (!res.ok) throw new Error(data.error_description || data.error || `HTTP ${res.status}`)
+  return data
+}
+
+// GET from an OAuth resource endpoint
+async function oauthGet(url: string, accessToken: string): Promise<any> {
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`)
+  return res.json()
+}
+
+// Find an existing admin by OAuth identity or email, optionally auto-provision
+async function findOrProvisionAdmin(opts: {
+  email: string; name: string; provider: string; subject: string
+}) {
+  const { email, name, provider, subject } = opts
+
+  // Already linked via OAuth subject
+  const { rows: bySubject } = await query(
+    'SELECT * FROM admin_users WHERE oauth_provider = $1 AND oauth_subject = $2',
+    [provider, subject]
+  )
+  if (bySubject[0]) return bySubject[0]
+
+  // Existing account with matching email — link it
+  const { rows: byEmail } = await query('SELECT * FROM admin_users WHERE email = $1', [email])
+  if (byEmail[0]) {
+    await query(
+      'UPDATE admin_users SET oauth_provider = $1, oauth_subject = $2 WHERE id = $3',
+      [provider, subject, byEmail[0].id]
+    )
+    return byEmail[0]
+  }
+
+  // Auto-provision: only if OAUTH_AUTO_PROVISION=true (off by default)
+  if (process.env.OAUTH_AUTO_PROVISION === 'true') {
+    const { rows } = await query(
+      'INSERT INTO admin_users (name, email, oauth_provider, oauth_subject) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, email, provider, subject]
+    )
+    console.log(`[OAuth] Auto-provisioned admin: ${email} (${provider})`)
+    return rows[0]
+  }
+
+  return null
+}
+
+// Redirect URL on OAuth error — always goes back to the frontend login page
+function frontendUrl() {
+  return (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
+}
+function redirectError(res: Response, msg: string) {
+  return res.redirect(`${frontendUrl()}/login?error=${encodeURIComponent(msg)}`)
+}
+
+// ── Google OAuth ──────────────────────────────────────────────────────────────
+
+router.get('/google', (req: Request, res: Response) => {
+  const clientId    = process.env.GOOGLE_CLIENT_ID
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI
+  if (!clientId || !redirectUri) return redirectError(res, 'Google SSO is not configured on this server')
+
+  const params = new URLSearchParams({
+    client_id:     clientId,
+    redirect_uri:  redirectUri,
+    response_type: 'code',
+    scope:         'openid email profile',
+    state:         newState(),
+    access_type:   'online',
+    prompt:        'select_account',
+  })
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
+})
+
+router.get('/google/callback', async (req: Request, res: Response) => {
+  const { code, state } = req.query as { code?: string; state?: string }
+
+  if (!state || !consumeState(state)) return redirectError(res, 'Invalid OAuth state — please try again')
+  if (!code) return redirectError(res, 'No authorisation code received from Google')
+
+  try {
+    const tokenData = await oauthPost('https://oauth2.googleapis.com/token', {
+      code,
+      client_id:     process.env.GOOGLE_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      redirect_uri:  process.env.GOOGLE_REDIRECT_URI!,
+      grant_type:    'authorization_code',
+    })
+    if (!tokenData.access_token) return redirectError(res, 'Google did not return an access token')
+
+    const userInfo = await oauthGet('https://www.googleapis.com/oauth2/v3/userinfo', tokenData.access_token)
+    if (!userInfo.email) return redirectError(res, 'Could not retrieve email from Google account')
+
+    const admin = await findOrProvisionAdmin({
+      email:    userInfo.email,
+      name:     userInfo.name || userInfo.email,
+      provider: 'google',
+      subject:  userInfo.sub,
+    })
+    if (!admin) return redirectError(res, 'No admin account is linked to this Google address. Ask your administrator to create one.')
+
+    auditLog({ user_type: 'admin', user_id: admin.id, action: 'oauth_login', extra: { provider: 'google' }, ip_address: req.ip })
+    const token = signAdminToken(admin.id, admin.email)
+    const user  = encodeURIComponent(JSON.stringify({ id: admin.id, name: admin.name, email: admin.email }))
+    res.redirect(`${frontendUrl()}/login?token=${token}&user=${user}`)
+  } catch (e: any) {
+    console.error('[Google OAuth]', e.message)
+    redirectError(res, 'Google sign-in failed — please try again')
+  }
+})
+
+// ── Microsoft OAuth ───────────────────────────────────────────────────────────
+
+router.get('/microsoft', (req: Request, res: Response) => {
+  const clientId    = process.env.MICROSOFT_CLIENT_ID
+  const redirectUri = process.env.MICROSOFT_REDIRECT_URI
+  if (!clientId || !redirectUri) return redirectError(res, 'Microsoft SSO is not configured on this server')
+
+  const params = new URLSearchParams({
+    client_id:     clientId,
+    redirect_uri:  redirectUri,
+    response_type: 'code',
+    scope:         'openid email profile User.Read',
+    state:         newState(),
+    response_mode: 'query',
+    prompt:        'select_account',
+  })
+  res.redirect(`https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`)
+})
+
+router.get('/microsoft/callback', async (req: Request, res: Response) => {
+  const { code, state } = req.query as { code?: string; state?: string }
+
+  if (!state || !consumeState(state)) return redirectError(res, 'Invalid OAuth state — please try again')
+  if (!code) return redirectError(res, 'No authorisation code received from Microsoft')
+
+  try {
+    const tokenData = await oauthPost('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+      code,
+      client_id:     process.env.MICROSOFT_CLIENT_ID!,
+      client_secret: process.env.MICROSOFT_CLIENT_SECRET!,
+      redirect_uri:  process.env.MICROSOFT_REDIRECT_URI!,
+      grant_type:    'authorization_code',
+      scope:         'openid email profile User.Read',
+    })
+    if (!tokenData.access_token) return redirectError(res, 'Microsoft did not return an access token')
+
+    const userInfo = await oauthGet(
+      'https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName',
+      tokenData.access_token
+    )
+    const email = userInfo.mail || userInfo.userPrincipalName
+    if (!email) return redirectError(res, 'Could not retrieve email from Microsoft account')
+
+    const admin = await findOrProvisionAdmin({
+      email,
+      name:     userInfo.displayName || email,
+      provider: 'microsoft',
+      subject:  userInfo.id,
+    })
+    if (!admin) return redirectError(res, 'No admin account is linked to this Microsoft address. Ask your administrator to create one.')
+
+    auditLog({ user_type: 'admin', user_id: admin.id, action: 'oauth_login', extra: { provider: 'microsoft' }, ip_address: req.ip })
+    const token = signAdminToken(admin.id, admin.email)
+    const user  = encodeURIComponent(JSON.stringify({ id: admin.id, name: admin.name, email: admin.email }))
+    res.redirect(`${frontendUrl()}/login?token=${token}&user=${user}`)
+  } catch (e: any) {
+    console.error('[Microsoft OAuth]', e.message)
+    redirectError(res, 'Microsoft sign-in failed — please try again')
+  }
 })
 
 export default router

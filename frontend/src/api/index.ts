@@ -98,6 +98,13 @@ export const adminAuthApi = {
     api.post('/admin/auth/forgot-password', { email }).then(r => r.data),
   resetPassword: (token: string, new_password: string) =>
     api.post('/admin/auth/reset-password', { token, new_password }).then(r => r.data),
+  ssoConfig: (): Promise<{ google: boolean; microsoft: boolean }> =>
+    api.get('/admin/auth/sso-config').then(r => r.data),
+  /** Initiate OAuth — navigates the browser (not a fetch call) */
+  ssoRedirect: (provider: 'google' | 'microsoft') => {
+    const base = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
+    window.location.href = `${base}/admin/auth/${provider}`
+  },
 }
 
 export const messagesApi = {

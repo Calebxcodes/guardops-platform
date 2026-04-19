@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { Shield, Eye, EyeOff, AlertCircle, Loader, RefreshCw } from 'lucide-react'
 import { adminAuthApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
@@ -16,17 +16,77 @@ function makeCaptcha() {
   return { question: `${a} ${op} ${b}`, answer }
 }
 
+// Google & Microsoft SVG wordmark icons (inline, no external dependency)
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  )
+}
+
+function MicrosoftIcon() {
+  return (
+    <svg viewBox="0 0 21 21" className="w-4 h-4" aria-hidden="true">
+      <rect x="1"  y="1"  width="9" height="9" fill="#F25022"/>
+      <rect x="11" y="1"  width="9" height="9" fill="#7FBA00"/>
+      <rect x="1"  y="11" width="9" height="9" fill="#00A4EF"/>
+      <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+    </svg>
+  )
+}
+
 export default function Login() {
-  const navigate   = useNavigate()
-  const setAuth    = useAuthStore(s => s.setAuth)
-  const [email,    setEmail]    = useState('')
-  const [password, setPassword] = useState('')
-  const [showPass, setShowPass] = useState(false)
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState('')
-  const [captcha,  setCaptcha]  = useState(makeCaptcha)
+  const navigate        = useNavigate()
+  const setAuth         = useAuthStore(s => s.setAuth)
+  const [searchParams]  = useSearchParams()
+
+  const [email,        setEmail]        = useState('')
+  const [password,     setPassword]     = useState('')
+  const [showPass,     setShowPass]     = useState(false)
+  const [loading,      setLoading]      = useState(false)
+  const [error,        setError]        = useState('')
+  const [captcha,      setCaptcha]      = useState(makeCaptcha)
   const [captchaInput, setCaptchaInput] = useState('')
   const [captchaError, setCaptchaError] = useState(false)
+  const [ssoConfig,    setSsoConfig]    = useState<{ google: boolean; microsoft: boolean } | null>(null)
+  const [ssoLoading,   setSsoLoading]   = useState<'google' | 'microsoft' | null>(null)
+
+  // Consume OAuth callback params: ?token=...&user=... or ?error=...
+  useEffect(() => {
+    const oauthToken = searchParams.get('token')
+    const oauthUser  = searchParams.get('user')
+    const oauthError = searchParams.get('error')
+
+    if (oauthError) {
+      setError(oauthError)
+      // Clear params so refresh doesn't replay the error
+      window.history.replaceState({}, '', '/login')
+      return
+    }
+
+    if (oauthToken && oauthUser) {
+      try {
+        const admin = JSON.parse(decodeURIComponent(oauthUser))
+        setAuth(oauthToken, admin)
+        window.history.replaceState({}, '', '/login')
+        navigate('/', { replace: true })
+      } catch {
+        setError('SSO sign-in failed — malformed response. Please try again.')
+        window.history.replaceState({}, '', '/login')
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch which SSO providers are configured
+  useEffect(() => {
+    adminAuthApi.ssoConfig()
+      .then(setSsoConfig)
+      .catch(() => setSsoConfig({ google: false, microsoft: false }))
+  }, [])
 
   const refreshCaptcha = () => { setCaptcha(makeCaptcha()); setCaptchaInput(''); setCaptchaError(false) }
 
@@ -52,6 +112,14 @@ export default function Login() {
     }
   }
 
+  const handleSSO = (provider: 'google' | 'microsoft') => {
+    setSsoLoading(provider)
+    adminAuthApi.ssoRedirect(provider)
+    // setSsoLoading stays set — page will navigate away
+  }
+
+  const showSso = ssoConfig && (ssoConfig.google || ssoConfig.microsoft)
+
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
@@ -64,15 +132,54 @@ export default function Login() {
           <p className="text-gray-500 text-sm mt-1">Operations Platform</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 flex items-center gap-2 text-sm">
-              <AlertCircle size={16} className="shrink-0" />
-              {error}
-            </div>
-          )}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 flex items-center gap-2 text-sm mb-4">
+            <AlertCircle size={16} className="shrink-0" />
+            {error}
+          </div>
+        )}
 
+        {/* SSO buttons — shown only when at least one provider is configured */}
+        {showSso && (
+          <div className="space-y-2.5 mb-6">
+            {ssoConfig!.google && (
+              <button
+                type="button"
+                onClick={() => handleSSO('google')}
+                disabled={!!ssoLoading}
+                className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 disabled:opacity-60 text-gray-800 font-medium rounded-xl py-3 px-4 border border-gray-200 transition-colors"
+              >
+                {ssoLoading === 'google'
+                  ? <Loader size={16} className="animate-spin text-gray-500" />
+                  : <GoogleIcon />}
+                Continue with Google
+              </button>
+            )}
+            {ssoConfig!.microsoft && (
+              <button
+                type="button"
+                onClick={() => handleSSO('microsoft')}
+                disabled={!!ssoLoading}
+                className="w-full flex items-center justify-center gap-3 bg-[#2f2f2f] hover:bg-[#404040] disabled:opacity-60 text-white font-medium rounded-xl py-3 px-4 transition-colors"
+              >
+                {ssoLoading === 'microsoft'
+                  ? <Loader size={16} className="animate-spin text-gray-400" />
+                  : <MicrosoftIcon />}
+                Continue with Microsoft
+              </button>
+            )}
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 pt-1">
+              <div className="flex-1 h-px bg-gray-800" />
+              <span className="text-gray-600 text-xs font-medium">or sign in with password</span>
+              <div className="flex-1 h-px bg-gray-800" />
+            </div>
+          </div>
+        )}
+
+        {/* Password form */}
+        <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1.5">Email Address</label>
             <input

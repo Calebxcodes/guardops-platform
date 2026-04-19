@@ -325,6 +325,14 @@ export async function initSchema() {
     CREATE INDEX IF NOT EXISTS audit_log_action_idx  ON audit_log (action);
     CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log (created_at DESC);
   `)
+
+  // OAuth SSO columns — added as a migration so existing deployments upgrade in place
+  await pool.query(`
+    ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS oauth_provider TEXT;
+    ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS oauth_subject  TEXT;
+  `)
+  // password_hash is nullable for OAuth-only accounts (no password set)
+  await pool.query(`ALTER TABLE admin_users ALTER COLUMN password_hash DROP NOT NULL`)
 }
 
 // ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────
