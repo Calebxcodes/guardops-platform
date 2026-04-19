@@ -4,6 +4,17 @@ import crypto from 'crypto'
 import { query, auditLog } from '../db/schema'
 import jwt from 'jsonwebtoken'
 import { sendPasswordReset } from '../services/email'
+import { generateSecret as _totpGenSecret, verifySync as _totpVerify, generateURI as _totpURI } from 'otplib/dist/functional'
+
+// Adapters for otplib v13 functional API
+const totp = {
+  generateSecret: () => _totpGenSecret({}),
+  verify: (token: string, secret: string): boolean => {
+    try { const r = _totpVerify({ token, secret }); return (r as any).valid === true } catch { return false }
+  },
+  keyuri: (label: string, issuer: string, secret: string) => _totpURI({ label, issuer, secret }),
+}
+import QRCode from 'qrcode'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET
@@ -11,6 +22,22 @@ if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set. Re
 
 function signAdminToken(id: number, email: string) {
   return jwt.sign({ adminId: id, email, role: 'admin' }, JWT_SECRET, { expiresIn: '8h' })
+}
+
+// Short-lived token issued after password verification when 2FA is required.
+// Must be exchanged for a full token via POST /2fa/validate.
+function signPartialToken(id: number) {
+  return jwt.sign({ adminId: id, twofa_pending: true }, JWT_SECRET, { expiresIn: '5m' })
+}
+
+function generateBackupCodes(): { plain: string[]; hashed: string[] } {
+  const plain = Array.from({ length: 8 }, () => {
+    const a = crypto.randomBytes(3).toString('hex').toUpperCase()
+    const b = crypto.randomBytes(3).toString('hex').toUpperCase()
+    return `${a}-${b}`
+  })
+  const hashed = plain.map(c => crypto.createHash('sha256').update(c).digest('hex'))
+  return { plain, hashed }
 }
 
 export function requireAdmin(req: any, res: Response, next: any) {
@@ -74,6 +101,11 @@ router.post('/login', async (req: Request, res: Response) => {
     auditLog({ user_type: 'admin', action: 'login_failed', extra: { email }, ip_address: req.ip })
     return res.status(401).json({ error: 'Invalid credentials' })
   }
+  // If 2FA is enabled, issue a short-lived partial token — full token comes after TOTP verify
+  if (admin.totp_enabled) {
+    const partial_token = signPartialToken(admin.id)
+    return res.json({ requires_2fa: true, partial_token })
+  }
   auditLog({ user_type: 'admin', user_id: admin.id, action: 'login', ip_address: req.ip })
   const token = signAdminToken(admin.id, admin.email)
   res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email } })
@@ -123,6 +155,135 @@ router.post('/reset-password', async (req: Request, res: Response) => {
   await query(`UPDATE password_reset_tokens SET used = 1 WHERE id = $1`, [rows[0].id])
   await query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [hash, rows[0].user_id])
   res.json({ message: 'Password updated successfully' })
+})
+
+// ── 2FA — validate TOTP after password login ─────────────────────────────────
+
+router.post('/2fa/validate', async (req: Request, res: Response) => {
+  const { partial_token, code } = req.body
+  if (!partial_token || !code) return res.status(400).json({ error: 'partial_token and code required' })
+
+  let payload: any
+  try {
+    payload = jwt.verify(partial_token, JWT_SECRET) as any
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired session — please log in again' })
+  }
+  if (!payload.twofa_pending) return res.status(401).json({ error: 'Invalid token type' })
+
+  const { rows } = await query('SELECT * FROM admin_users WHERE id = $1', [payload.adminId])
+  const admin = rows[0]
+  if (!admin) return res.status(401).json({ error: 'Account not found' })
+
+  // Check TOTP code
+  const totpValid = admin.totp_secret && totp.verify(code.replace(/\s/g, ''), admin.totp_secret)
+
+  // Check backup codes if TOTP fails
+  if (!totpValid) {
+    const backupCodes: string[] = admin.totp_backup_codes ? JSON.parse(admin.totp_backup_codes) : []
+    const codeHash = crypto.createHash('sha256').update(code.replace(/\s/g, '').toUpperCase()).digest('hex')
+    const idx = backupCodes.indexOf(codeHash)
+    if (idx === -1) {
+      auditLog({ user_type: 'admin', action: '2fa_failed', user_id: admin.id, ip_address: req.ip })
+      return res.status(401).json({ error: 'Invalid authentication code' })
+    }
+    // Consume backup code (one-time use)
+    backupCodes.splice(idx, 1)
+    await query('UPDATE admin_users SET totp_backup_codes = $1 WHERE id = $2', [JSON.stringify(backupCodes), admin.id])
+    auditLog({ user_type: 'admin', user_id: admin.id, action: '2fa_backup_used', ip_address: req.ip })
+  }
+
+  auditLog({ user_type: 'admin', user_id: admin.id, action: 'login', ip_address: req.ip })
+  const token = signAdminToken(admin.id, admin.email)
+  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email } })
+})
+
+// ── 2FA — management (requires full admin auth) ───────────────────────────────
+
+router.get('/2fa/status', requireAdmin, async (req: any, res: Response) => {
+  const { rows } = await query('SELECT totp_enabled FROM admin_users WHERE id = $1', [req.adminId])
+  res.json({ enabled: !!rows[0]?.totp_enabled })
+})
+
+router.post('/2fa/setup', requireAdmin, async (req: any, res: Response) => {
+  const { rows } = await query('SELECT email, totp_enabled FROM admin_users WHERE id = $1', [req.adminId])
+  const admin = rows[0]
+  if (!admin) return res.status(404).json({ error: 'Account not found' })
+  if (admin.totp_enabled) return res.status(400).json({ error: '2FA is already enabled' })
+
+  const secret = totp.generateSecret()
+  // Store secret temporarily (not yet active until confirmed)
+  await query('UPDATE admin_users SET totp_secret = $1 WHERE id = $2', [secret, req.adminId])
+
+  const otpauth = totp.keyuri(admin.email, 'Strondis Ops', secret)
+  const qrDataUrl = await QRCode.toDataURL(otpauth, { width: 256, margin: 2 })
+
+  res.json({ secret, qr_code: qrDataUrl })
+})
+
+router.post('/2fa/confirm', requireAdmin, async (req: any, res: Response) => {
+  const { code } = req.body
+  if (!code) return res.status(400).json({ error: 'Verification code required' })
+
+  const { rows } = await query('SELECT totp_secret, totp_enabled FROM admin_users WHERE id = $1', [req.adminId])
+  const admin = rows[0]
+  if (!admin?.totp_secret) return res.status(400).json({ error: 'Start 2FA setup first' })
+  if (admin.totp_enabled) return res.status(400).json({ error: '2FA is already enabled' })
+
+  const valid = totp.verify(code.replace(/\s/g, ''), admin.totp_secret)
+  if (!valid) return res.status(400).json({ error: 'Invalid code — check your authenticator app' })
+
+  const { plain, hashed } = generateBackupCodes()
+  await query(
+    'UPDATE admin_users SET totp_enabled = 1, totp_backup_codes = $1 WHERE id = $2',
+    [JSON.stringify(hashed), req.adminId]
+  )
+  auditLog({ user_type: 'admin', user_id: req.adminId, action: '2fa_enabled', ip_address: req.ip })
+
+  res.json({ backup_codes: plain })
+})
+
+router.post('/2fa/disable', requireAdmin, async (req: any, res: Response) => {
+  const { password, code } = req.body
+  if (!password || !code) return res.status(400).json({ error: 'Password and authenticator code required' })
+
+  const { rows } = await query('SELECT * FROM admin_users WHERE id = $1', [req.adminId])
+  const admin = rows[0]
+  if (!admin) return res.status(404).json({ error: 'Account not found' })
+  if (!admin.totp_enabled) return res.status(400).json({ error: '2FA is not enabled' })
+
+  if (admin.password_hash) {
+    const pwValid = await bcrypt.compare(password, admin.password_hash)
+    if (!pwValid) return res.status(401).json({ error: 'Incorrect password' })
+  }
+
+  const totpValid = totp.verify(code.replace(/\s/g, ''), admin.totp_secret)
+  if (!totpValid) return res.status(400).json({ error: 'Invalid authenticator code' })
+
+  await query(
+    'UPDATE admin_users SET totp_enabled = 0, totp_secret = NULL, totp_backup_codes = NULL WHERE id = $1',
+    [req.adminId]
+  )
+  auditLog({ user_type: 'admin', user_id: req.adminId, action: '2fa_disabled', ip_address: req.ip })
+  res.json({ message: '2FA has been disabled' })
+})
+
+router.post('/2fa/backup-codes/regenerate', requireAdmin, async (req: any, res: Response) => {
+  const { code } = req.body
+  if (!code) return res.status(400).json({ error: 'Authenticator code required' })
+
+  const { rows } = await query('SELECT totp_secret, totp_enabled FROM admin_users WHERE id = $1', [req.adminId])
+  const admin = rows[0]
+  if (!admin?.totp_enabled) return res.status(400).json({ error: '2FA is not enabled' })
+
+  const valid = totp.verify(code.replace(/\s/g, ''), admin.totp_secret)
+  if (!valid) return res.status(400).json({ error: 'Invalid authenticator code' })
+
+  const { plain, hashed } = generateBackupCodes()
+  await query('UPDATE admin_users SET totp_backup_codes = $1 WHERE id = $2', [JSON.stringify(hashed), req.adminId])
+  auditLog({ user_type: 'admin', user_id: req.adminId, action: '2fa_backup_regenerated', ip_address: req.ip })
+
+  res.json({ backup_codes: plain })
 })
 
 // ── SSO config probe ──────────────────────────────────────────────────────────

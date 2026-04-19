@@ -55,6 +55,12 @@ export default function Login() {
   const [ssoConfig,    setSsoConfig]    = useState<{ google: boolean; microsoft: boolean } | null>(null)
   const [ssoLoading,   setSsoLoading]   = useState<'google' | 'microsoft' | null>(null)
 
+  // 2FA step
+  const [twoFaMode,     setTwoFaMode]     = useState(false)
+  const [partialToken,  setPartialToken]  = useState('')
+  const [twoFaCode,     setTwoFaCode]     = useState('')
+  const [twoFaLoading,  setTwoFaLoading]  = useState(false)
+
   // Consume OAuth callback params: ?token=...&user=... or ?error=...
   useEffect(() => {
     const oauthToken = searchParams.get('token')
@@ -101,14 +107,36 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      const { token, admin } = await adminAuthApi.login(email, password)
-      setAuth(token, admin)
-      navigate('/', { replace: true })
+      const result = await adminAuthApi.login(email, password)
+      if (result.requires_2fa) {
+        setPartialToken(result.partial_token)
+        setTwoFaMode(true)
+        setError('')
+      } else {
+        setAuth(result.token, result.admin)
+        navigate('/', { replace: true })
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed. Please check your credentials.')
       refreshCaptcha()
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTwoFa = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setTwoFaLoading(true)
+    try {
+      const { token, admin } = await adminAuthApi.twoFaValidate(partialToken, twoFaCode)
+      setAuth(token, admin)
+      navigate('/', { replace: true })
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Invalid code. Please try again.')
+      setTwoFaCode('')
+    } finally {
+      setTwoFaLoading(false)
     }
   }
 
@@ -119,6 +147,58 @@ export default function Login() {
   }
 
   const showSso = ssoConfig && (ssoConfig.google || ssoConfig.microsoft)
+
+  if (twoFaMode) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
+          <div className="flex flex-col items-center mb-10">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-xl">
+              <Shield size={32} className="text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">Two-Factor Auth</h1>
+            <p className="text-gray-500 text-sm mt-1">Enter the code from your authenticator app</p>
+          </div>
+
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 flex items-center gap-2 text-sm mb-4">
+              <AlertCircle size={16} className="shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleTwoFa} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1.5">Authentication Code</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                maxLength={8}
+                value={twoFaCode}
+                onChange={e => setTwoFaCode(e.target.value.replace(/[^0-9A-Fa-f-]/g, ''))}
+                placeholder="000000 or XXXXXX-XXXXXX"
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-center text-xl tracking-widest placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                autoFocus
+              />
+              <p className="text-gray-600 text-xs mt-1.5">Enter the 6-digit code, or a backup code (XXXXXX-XXXXXX)</p>
+            </div>
+
+            <button type="submit" disabled={twoFaLoading || twoFaCode.length < 6}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl py-3.5 flex items-center justify-center gap-2 transition-colors">
+              {twoFaLoading ? <><Loader size={18} className="animate-spin" /> Verifying...</> : 'Verify'}
+            </button>
+
+            <button type="button" onClick={() => { setTwoFaMode(false); setError(''); setTwoFaCode('') }}
+              className="w-full text-gray-500 hover:text-gray-300 text-sm py-2 transition-colors">
+              ← Back to login
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6 py-12">

@@ -352,8 +352,12 @@ export async function initSchema() {
 
     CREATE INDEX IF NOT EXISTS clock_events_shift_idx   ON clock_events (shift_id);
     CREATE INDEX IF NOT EXISTS shift_checks_shift_idx   ON shift_checks (shift_id);
-    CREATE INDEX IF NOT EXISTS checkpoint_scans_shift_idx ON checkpoint_scans (shift_id);
   `)
+
+  // checkpoint_scans may not exist in older deployments — create index only if table exists
+  try {
+    await pool.query(`CREATE INDEX IF NOT EXISTS checkpoint_scans_shift_idx ON checkpoint_scans (shift_id)`)
+  } catch { /* table not yet created — skip */ }
 
   // OAuth SSO columns — added as a migration so existing deployments upgrade in place
   await pool.query(`
@@ -362,6 +366,13 @@ export async function initSchema() {
   `)
   // password_hash is nullable for OAuth-only accounts (no password set)
   await pool.query(`ALTER TABLE admin_users ALTER COLUMN password_hash DROP NOT NULL`)
+
+  // 2FA (TOTP) columns
+  await pool.query(`
+    ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS totp_secret       TEXT;
+    ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS totp_enabled      INTEGER DEFAULT 0;
+    ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT;
+  `)
 }
 
 // ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────

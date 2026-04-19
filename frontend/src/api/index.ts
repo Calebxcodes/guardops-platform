@@ -105,6 +105,18 @@ export const adminAuthApi = {
     const base = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
     window.location.href = `${base}/admin/auth/${provider}`
   },
+  twoFaValidate: (partial_token: string, code: string): Promise<{ token: string; admin: any }> =>
+    api.post('/admin/auth/2fa/validate', { partial_token, code }).then(r => r.data),
+  twoFaStatus: (): Promise<{ enabled: boolean }> =>
+    api.get('/admin/auth/2fa/status').then(r => r.data),
+  twoFaSetup: (): Promise<{ secret: string; qr_code: string }> =>
+    api.post('/admin/auth/2fa/setup').then(r => r.data),
+  twoFaConfirm: (code: string): Promise<{ backup_codes: string[] }> =>
+    api.post('/admin/auth/2fa/confirm', { code }).then(r => r.data),
+  twoFaDisable: (password: string, code: string): Promise<void> =>
+    api.post('/admin/auth/2fa/disable', { password, code }).then(r => r.data),
+  twoFaRegenerateCodes: (code: string): Promise<{ backup_codes: string[] }> =>
+    api.post('/admin/auth/2fa/backup-codes/regenerate', { code }).then(r => r.data),
 }
 
 export const messagesApi = {
