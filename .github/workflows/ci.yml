@@ -6,8 +6,14 @@ on:
   pull_request:
     branches: [master]
 
+# Cancel any in-flight run for the same branch/PR — prevents deploy races
+# and avoids wasting CI minutes on stale pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  # ── Validation (runs on every push and PR) ─────────────────────────────────
+  # ── Validation (runs on every push and PR) ────────────────────────────────
 
   test-backend:
     name: Test Backend
@@ -23,16 +29,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Type-check
       - name: Type check
         run: npx tsc --noEmit
         working-directory: backend
 
-      # Unit tests (db is fully mocked — no real DB needed)
       - name: Run tests
         run: npm test --workspace=backend
         env:
           JWT_SECRET: ci-test-secret
+          # DATABASE_URL is mocked in tests — value here is a sentinel for env guards
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
   build-frontend:
     name: Build Admin CRM
@@ -48,9 +54,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # tsc + vite build — catches TS errors and broken imports
       - name: Build
         run: npm run build --workspace=frontend
+        env:
+          # Placeholder — real value only matters at runtime, not build time
+          VITE_API_URL: https://placeholder.railway.app
 
   build-guard-app:
     name: Build Guard App
@@ -68,24 +76,29 @@ jobs:
 
       - name: Build
         run: npm run build --workspace=guard-app
+        env:
+          VITE_API_URL: https://placeholder.railway.app
 
-  # ── Deploy (master branch only, gated on validation jobs above) ─────────────
+  # ── Deploy (master only, ALL validation jobs must pass) ───────────────────
+  # Gating all three deploys on all three checks ensures a broken backend
+  # doesn't let a frontend that depends on it reach production.
 
   deploy-backend:
     name: Deploy Backend → Railway
     if: github.ref == 'refs/heads/master'
-    needs: test-backend
+    needs: [test-backend, build-frontend, build-guard-app]
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Deploy
-        # --detach returns immediately after upload; Railway builds asynchronously.
-        # Remove --detach to make the job wait for Railway's health check.
-        run: railway up --detach
+      - name: Deploy (waits for Railway health check)
+        # Omitting --detach so the job blocks until Railway confirms the new
+        # deployment is healthy — CI fails fast if the build or boot crashes.
+        run: railway up --service backend
         working-directory: backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -93,15 +106,15 @@ jobs:
   deploy-frontend:
     name: Deploy Admin CRM → Vercel
     if: github.ref == 'refs/heads/master'
-    needs: build-frontend
+    needs: [test-backend, build-frontend, build-guard-app]
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Vercel CLI
         run: npm install -g vercel
 
-      # vercel.json + .vercel/project.json already committed — CLI knows the project
       - name: Deploy
         run: vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
         working-directory: frontend
@@ -109,8 +122,9 @@ jobs:
   deploy-guard-app:
     name: Deploy Guard App → Vercel
     if: github.ref == 'refs/heads/master'
-    needs: build-guard-app
+    needs: [test-backend, build-frontend, build-guard-app]
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
@@ -124,9 +138,9 @@ jobs:
   deploy-landing:
     name: Deploy Landing → Vercel
     if: github.ref == 'refs/heads/master'
-    # No dedicated build job for landing — it's a simple static site.
-    # Vercel will reject a broken build and the deploy step will fail.
+    needs: [test-backend, build-frontend, build-guard-app]
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
 

@@ -42,9 +42,17 @@ export const shiftsApi = {
   clockOut: (data: { shift_id: number; lat?: number; lng?: number; accuracy?: number; notes?: string; face_verified?: boolean }) =>
     api.post('/guard/shifts/clock-out', data).then(r => r.data),
   clockEvents: (shiftId: number) => api.get(`/guard/shifts/${shiftId}/clock-events`).then(r => r.data),
-  getChecks:   (shiftId: number) => api.get(`/guard/shifts/${shiftId}/checks`).then(r => r.data),
-  submitCheck: (shiftId: number, data: { headcount: number; fire_exits_clear: boolean; toilets_ok: boolean; lighting_ok: boolean; notes?: string }) =>
-    api.post(`/guard/shifts/${shiftId}/checks`, data).then(r => r.data),
+  getChecks:       (shiftId: number) => api.get(`/guard/shifts/${shiftId}/checks`).then(r => r.data),
+  getChecklist:     (shiftId: number) => api.get(`/guard/shifts/${shiftId}/checklist`).then(r => r.data),
+  getCheckpoints:   (shiftId: number) => api.get(`/guard/shifts/${shiftId}/checkpoints`).then(r => r.data),
+  scanCheckpoint:   (shiftId: number, cpId: number, data?: { lat?: number; lng?: number }) =>
+    api.post(`/guard/shifts/${shiftId}/checkpoints/${cpId}/checkin`, data ?? {}).then(r => r.data),
+  submitCheck: (shiftId: number, data: {
+    headcount: number
+    notes?: string
+    items?: { template_id?: number | null; label: string; checked: boolean }[]
+    fire_exits_clear?: boolean; toilets_ok?: boolean; lighting_ok?: boolean
+  }) => api.post(`/guard/shifts/${shiftId}/checks`, data).then(r => r.data),
 }
 
 export const timesheetsApi = {
@@ -61,6 +69,8 @@ export const messagesApi = {
     api.post('/guard/messages/emergency', { message, lat, lng }).then(r => r.data),
   unread: () => api.get('/guard/messages/unread').then(r => r.data),
   markRead: (id: number) => api.put(`/guard/messages/${id}/read`, {}).then(r => r.data),
+  streamToken: (): Promise<{ token: string }> =>
+    api.post('/guard/messages/stream-token').then(r => r.data),
 }
 
 export const pushApi = {
@@ -70,6 +80,17 @@ export const pushApi = {
     api.post('/guard/push/subscribe', subscription).then(r => r.data),
   unsubscribe: (endpoint: string) =>
     api.post('/guard/push/unsubscribe', { endpoint }).then(r => r.data),
+}
+
+export const documentsApi = {
+  list: () => api.get('/guard/documents').then(r => r.data),
+  download: async (id: number, filename: string) => {
+    const res = await api.get(`/guard/documents/${id}/download`, { responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  },
 }
 
 export const profileApi = {

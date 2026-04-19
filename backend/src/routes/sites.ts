@@ -60,4 +60,62 @@ router.delete('/:id', async (req: Request, res: Response) => {
   res.json({ success: true })
 })
 
+// ── Patrol checkpoints ────────────────────────────────────────────────────
+
+router.get('/:id/checkpoints', async (req: Request, res: Response) => {
+  const { rows } = await query(
+    'SELECT id, name, instructions, lat, lng, order_num FROM route_checkpoints WHERE site_id = $1 ORDER BY order_num, id',
+    [req.params.id]
+  )
+  res.json(rows)
+})
+
+router.put('/:id/checkpoints', async (req: Request, res: Response) => {
+  const items: { name: string; instructions?: string }[] = req.body
+  if (!Array.isArray(items)) return res.status(400).json({ error: 'Expected an array' })
+  await query('DELETE FROM route_checkpoints WHERE site_id = $1', [req.params.id])
+  for (let i = 0; i < items.length; i++) {
+    const { name, instructions } = items[i]
+    if (!name?.trim()) continue
+    await query(
+      'INSERT INTO route_checkpoints (site_id, name, instructions, order_num) VALUES ($1, $2, $3, $4)',
+      [req.params.id, name.trim(), instructions?.trim() || null, i]
+    )
+  }
+  const { rows } = await query(
+    'SELECT id, name, instructions, lat, lng, order_num FROM route_checkpoints WHERE site_id = $1 ORDER BY order_num, id',
+    [req.params.id]
+  )
+  res.json(rows)
+})
+
+// ── Checklist templates ────────────────────────────────────────────────────
+
+router.get('/:id/checklist', async (req: Request, res: Response) => {
+  const { rows } = await query(
+    'SELECT id, label, description, sort_order FROM checklist_templates WHERE site_id = $1 ORDER BY sort_order, id',
+    [req.params.id]
+  )
+  res.json(rows)
+})
+
+router.put('/:id/checklist', async (req: Request, res: Response) => {
+  const items: { label: string; description?: string }[] = req.body
+  if (!Array.isArray(items)) return res.status(400).json({ error: 'Expected an array' })
+  await query('DELETE FROM checklist_templates WHERE site_id = $1', [req.params.id])
+  for (let i = 0; i < items.length; i++) {
+    const { label, description } = items[i]
+    if (!label?.trim()) continue
+    await query(
+      'INSERT INTO checklist_templates (site_id, label, description, sort_order) VALUES ($1, $2, $3, $4)',
+      [req.params.id, label.trim(), description?.trim() || null, i]
+    )
+  }
+  const { rows } = await query(
+    'SELECT id, label, description, sort_order FROM checklist_templates WHERE site_id = $1 ORDER BY sort_order, id',
+    [req.params.id]
+  )
+  res.json(rows)
+})
+
 export default router

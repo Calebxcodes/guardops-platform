@@ -228,6 +228,45 @@ export async function initSchema() {
     );
   `)
 
+  // Flexible checklist templates per site
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS checklist_templates (
+      id         SERIAL PRIMARY KEY,
+      site_id    INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      label      TEXT NOT NULL,
+      description TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS shift_check_items (
+      id          SERIAL PRIMARY KEY,
+      check_id    INTEGER NOT NULL REFERENCES shift_checks(id) ON DELETE CASCADE,
+      template_id INTEGER REFERENCES checklist_templates(id) ON DELETE SET NULL,
+      label       TEXT NOT NULL,
+      checked     INTEGER NOT NULL DEFAULT 0
+    );
+  `)
+
+  // Document management
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS documents (
+      id            SERIAL PRIMARY KEY,
+      name          TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      category      TEXT NOT NULL DEFAULT 'general',
+      site_id       INTEGER REFERENCES sites(id) ON DELETE SET NULL,
+      uploaded_by   INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,
+      file_path     TEXT NOT NULL,
+      mime_type     TEXT,
+      size          INTEGER DEFAULT 0,
+      description   TEXT,
+      is_guard_visible INTEGER NOT NULL DEFAULT 1,
+      created_at    TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS documents_category_idx ON documents (category);
+    CREATE INDEX IF NOT EXISTS documents_site_idx     ON documents (site_id);
+  `)
+
   // Push notification subscriptions
   await pool.query(`
     CREATE TABLE IF NOT EXISTS push_subscriptions (

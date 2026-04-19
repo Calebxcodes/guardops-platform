@@ -1,6 +1,7 @@
 import { Router, Response } from 'express'
 import { requireAuth, AuthRequest } from '../middleware/auth'
 import { query, auditLog } from '../db/schema'
+import { pushToAdmins } from '../services/sse'
 
 const router = Router()
 router.use(requireAuth)
@@ -103,9 +104,10 @@ router.post('/clock-in', async (req: AuthRequest, res: Response) => {
     return res.status(403).json({ error: 'Face ID verification required. Complete the face scan to clock in.' })
   }
 
-  // If clocking in early, record the actual time but note the shift start for pay purposes
-  const now = new Date()
-  const shiftStart = new Date(shift.start_time)
+  // Accept clocked_at from queued offline actions; fall back to server time
+  const requestedAt  = req.body.clocked_at ? new Date(req.body.clocked_at) : new Date()
+  const now          = !isNaN(requestedAt.getTime()) ? requestedAt : new Date()
+  const shiftStart   = new Date(shift.start_time)
   const effectiveClockIn = now < shiftStart ? shiftStart : now
 
   await query(`
@@ -177,10 +179,13 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
     ORDER BY created_at DESC LIMIT 1
   `, [req.guardId, shift_id])
 
+  const clockOutAt  = req.body.clocked_at ? new Date(req.body.clocked_at) : new Date()
+  const effectiveClockOut = !isNaN(clockOutAt.getTime()) ? clockOutAt : new Date()
+
   await query(`
-    INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes, face_verified)
-    VALUES ($1,$2,'clock_out',$3,$4,$5,$6,$7,1)
-  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes])
+    INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes, face_verified, created_at)
+    VALUES ($1,$2,'clock_out',$3,$4,$5,$6,$7,1,$8)
+  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes, effectiveClockOut.toISOString()])
 
   await query("UPDATE shifts SET status = 'completed' WHERE id = $1", [shift_id])
   await query("UPDATE guards SET status = 'off-duty' WHERE id = $1", [req.guardId])
@@ -188,13 +193,13 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
   auditLog({
     user_type: 'guard', user_id: req.guardId, action: 'clock_out',
     resource_type: 'shift', resource_id: shift_id,
-    extra: { lat, lng, face_verified },
+    extra: { lat, lng, face_verified, effective_time: effectiveClockOut.toISOString() },
     ip_address: (req as any).ip,
   })
 
   let hoursWorked = 0
   if (clockInRows[0]) {
-    const ms = new Date().getTime() - new Date(clockInRows[0].created_at).getTime()
+    const ms = effectiveClockOut.getTime() - new Date(clockInRows[0].created_at).getTime()
     hoursWorked = Math.round((ms / 3600000) * 100) / 100
   }
 
@@ -219,25 +224,107 @@ router.get('/:shiftId/clock-events', async (req: AuthRequest, res: Response) => 
   res.json(rows)
 })
 
+// ── Patrol checkpoints ────────────────────────────────────────────────────
+
+/** Checkpoints for the shift's site, annotated with this-shift scan status */
+router.get('/:shiftId/checkpoints', async (req: AuthRequest, res: Response) => {
+  const { rows: shiftRows } = await query(
+    'SELECT site_id, guard_id FROM shifts WHERE id = $1 AND guard_id = $2',
+    [req.params.shiftId, req.guardId]
+  )
+  if (!shiftRows[0]) return res.status(404).json({ error: 'Shift not found' })
+
+  const { rows } = await query(`
+    SELECT rc.id, rc.name, rc.instructions, rc.lat, rc.lng, rc.order_num,
+      (ci.id IS NOT NULL) as scanned,
+      ci.created_at as scanned_at
+    FROM route_checkpoints rc
+    LEFT JOIN checkpoint_checkins ci
+      ON ci.checkpoint_id = rc.id AND ci.shift_id = $1 AND ci.guard_id = $2
+    WHERE rc.site_id = $3
+    ORDER BY rc.order_num, rc.id
+  `, [req.params.shiftId, req.guardId, shiftRows[0].site_id])
+  res.json(rows)
+})
+
+/** Guard scans / checks in at a checkpoint */
+router.post('/:shiftId/checkpoints/:cpId/checkin', async (req: AuthRequest, res: Response) => {
+  const { rows: shiftRows } = await query(
+    'SELECT sh.id, sh.site_id, g.first_name, g.last_name FROM shifts sh JOIN guards g ON g.id = sh.guard_id WHERE sh.id = $1 AND sh.guard_id = $2',
+    [req.params.shiftId, req.guardId]
+  )
+  if (!shiftRows[0]) return res.status(404).json({ error: 'Shift not found' })
+
+  const { rows: cpRows } = await query(
+    'SELECT * FROM route_checkpoints WHERE id = $1 AND site_id = $2',
+    [req.params.cpId, shiftRows[0].site_id]
+  )
+  if (!cpRows[0]) return res.status(404).json({ error: 'Checkpoint not found' })
+
+  const { lat, lng } = req.body
+  const { rows } = await query(`
+    INSERT INTO checkpoint_checkins (checkpoint_id, guard_id, shift_id, lat, lng)
+    VALUES ($1, $2, $3, $4, $5) RETURNING *
+  `, [req.params.cpId, req.guardId, req.params.shiftId, lat || null, lng || null])
+
+  const scan = rows[0]
+  pushToAdmins('checkpoint-scan', {
+    scan,
+    checkpoint: cpRows[0],
+    guard: { id: req.guardId, first_name: shiftRows[0].first_name, last_name: shiftRows[0].last_name },
+    shift_id: req.params.shiftId,
+  })
+
+  res.status(201).json({ ...scan, checkpoint: cpRows[0] })
+})
+
+const DEFAULT_CHECKLIST = [
+  { id: null, label: 'Fire Exit Check',  description: 'All fire exits are clear, unlocked and unobstructed' },
+  { id: null, label: 'Toilet Check',     description: 'Facilities are clean, functional and accessible' },
+  { id: null, label: 'Lighting Check',   description: 'All interior and exterior lighting is operational' },
+]
+
+/** Checklist template for this shift's site (falls back to 3 defaults if site has none configured) */
+router.get('/:shiftId/checklist', async (req: AuthRequest, res: Response) => {
+  const { rows: shiftRows } = await query(
+    'SELECT site_id FROM shifts WHERE id = $1 AND guard_id = $2',
+    [req.params.shiftId, req.guardId]
+  )
+  if (!shiftRows[0]) return res.status(404).json({ error: 'Shift not found' })
+
+  const { rows } = await query(
+    'SELECT id, label, description, sort_order FROM checklist_templates WHERE site_id = $1 ORDER BY sort_order, id',
+    [shiftRows[0].site_id]
+  )
+  res.json(rows.length > 0 ? rows : DEFAULT_CHECKLIST)
+})
+
 // Hourly site checks
 router.get('/:shiftId/checks', async (req: AuthRequest, res: Response) => {
   const { rows } = await query(`
-    SELECT * FROM shift_checks
-    WHERE shift_id = $1 AND guard_id = $2
-    ORDER BY checked_at ASC
+    SELECT sc.*,
+      COALESCE(
+        json_agg(sci ORDER BY sci.id) FILTER (WHERE sci.id IS NOT NULL),
+        '[]'::json
+      ) as items
+    FROM shift_checks sc
+    LEFT JOIN shift_check_items sci ON sci.check_id = sc.id
+    WHERE sc.shift_id = $1 AND sc.guard_id = $2
+    GROUP BY sc.id
+    ORDER BY sc.checked_at ASC
   `, [req.params.shiftId, req.guardId])
   res.json(rows)
 })
 
 router.post('/:shiftId/checks', async (req: AuthRequest, res: Response) => {
-  // Verify the shift belongs to this guard
   const { rows: shiftRows } = await query(
     'SELECT id FROM shifts WHERE id = $1 AND guard_id = $2',
     [req.params.shiftId, req.guardId]
   )
   if (!shiftRows[0]) return res.status(404).json({ error: 'Shift not found' })
 
-  const { headcount, fire_exits_clear, toilets_ok, lighting_ok, notes } = req.body
+  const { headcount, notes, items,
+          fire_exits_clear, toilets_ok, lighting_ok } = req.body
   const { rows } = await query(`
     INSERT INTO shift_checks (guard_id, shift_id, headcount, fire_exits_clear, toilets_ok, lighting_ok, notes)
     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
@@ -247,7 +334,23 @@ router.post('/:shiftId/checks', async (req: AuthRequest, res: Response) => {
       toilets_ok ? 1 : 0,
       lighting_ok ? 1 : 0,
       notes || null])
-  res.status(201).json(rows[0])
+
+  const checkId = rows[0].id
+
+  if (Array.isArray(items) && items.length > 0) {
+    for (const item of items) {
+      await query(
+        'INSERT INTO shift_check_items (check_id, template_id, label, checked) VALUES ($1, $2, $3, $4)',
+        [checkId, item.template_id || null, item.label, item.checked ? 1 : 0]
+      )
+    }
+  }
+
+  const { rows: itemRows } = await query(
+    'SELECT * FROM shift_check_items WHERE check_id = $1 ORDER BY id',
+    [checkId]
+  )
+  res.status(201).json({ ...rows[0], items: itemRows })
 })
 
 export default router

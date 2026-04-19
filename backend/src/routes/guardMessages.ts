@@ -1,9 +1,17 @@
 import { Router, Response } from 'express'
 import { requireAuth, AuthRequest } from '../middleware/auth'
 import { query } from '../db/schema'
+import { pushToAdmins } from '../services/sse'
+import { issueGuardStreamToken } from '../services/streamTokens'
 
 const router = Router()
 router.use(requireAuth)
+
+/** Issue a short-lived stream token so the guard can open an SSE connection */
+router.post('/stream-token', (req: AuthRequest, res: Response) => {
+  const token = issueGuardStreamToken(req.guardId!)
+  res.json({ token })
+})
 
 router.get('/', async (req: AuthRequest, res: Response) => {
   const { rows } = await query(`
@@ -23,6 +31,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     INSERT INTO messages (from_guard_id, to_guard_id, body, is_emergency)
     VALUES ($1, 0, $2, $3) RETURNING *
   `, [req.guardId, body, is_emergency ? 1 : 0])
+  pushToAdmins('message', rows[0])
   res.status(201).json(rows[0])
 })
 
@@ -35,6 +44,7 @@ router.post('/emergency', async (req: AuthRequest, res: Response) => {
     INSERT INTO messages (from_guard_id, to_guard_id, body, is_emergency)
     VALUES ($1, 0, $2, 1) RETURNING *
   `, [req.guardId, msgBody])
+  pushToAdmins('message', rows[0])
   res.status(201).json(rows[0])
 })
 

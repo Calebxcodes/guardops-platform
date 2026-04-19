@@ -106,6 +106,42 @@ export const messagesApi = {
     api.post('/messages/send', { to_guard_id, body }).then(r => r.data),
   broadcast: (body: string) =>
     api.post('/messages/send', { body, is_broadcast: true }).then(r => r.data),
+  streamToken: (): Promise<{ token: string }> =>
+    api.post('/messages/stream-token').then(r => r.data),
+}
+
+export const checkpointsApi = {
+  get: (siteId: number): Promise<{ id: number; name: string; instructions?: string; lat?: number; lng?: number; order_num: number }[]> =>
+    api.get(`/sites/${siteId}/checkpoints`).then(r => r.data),
+  update: (siteId: number, items: { name: string; instructions?: string }[]) =>
+    api.put(`/sites/${siteId}/checkpoints`, items).then(r => r.data),
+}
+
+export const checklistApi = {
+  get: (siteId: number): Promise<{ id: number; label: string; description?: string; sort_order: number }[]> =>
+    api.get(`/sites/${siteId}/checklist`).then(r => r.data),
+  update: (siteId: number, items: { label: string; description?: string }[]) =>
+    api.put(`/sites/${siteId}/checklist`, items).then(r => r.data),
+}
+
+export const analyticsApi = {
+  overview:  (p: { from: string; to: string }) => api.get('/analytics/overview',  { params: p }).then(r => r.data),
+  revenue:   (p: { from: string; to: string }) => api.get('/analytics/revenue',   { params: p }).then(r => r.data),
+  workforce: (p: { from: string; to: string }) => api.get('/analytics/workforce', { params: p }).then(r => r.data),
+  sites:     (p: { from: string; to: string }) => api.get('/analytics/sites',     { params: p }).then(r => r.data),
+  incidents: (p: { from: string; to: string }) => api.get('/analytics/incidents', { params: p }).then(r => r.data),
+}
+
+export const documentsApi = {
+  list: (params?: { category?: string; site_id?: number }) =>
+    api.get('/documents', { params }).then(r => r.data),
+  upload: (formData: FormData) =>
+    api.post('/documents', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data),
+  update: (id: number, data: { name?: string; category?: string; site_id?: number | null; description?: string; is_guard_visible?: boolean }) =>
+    api.patch(`/documents/${id}`, data).then(r => r.data),
+  delete: (id: number) => api.delete(`/documents/${id}`).then(r => r.data),
+  downloadUrl: (id: number) =>
+    `${import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'}/documents/${id}/download`,
 }
 
 export const portalApi = {

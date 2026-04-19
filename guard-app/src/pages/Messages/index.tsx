@@ -18,7 +18,42 @@ export default function Messages() {
 
   const load = () => messagesApi.list().then(data => { setMessages(data); setLoading(false) })
 
-  useEffect(() => { load(); const iv = setInterval(load, 15000); return () => clearInterval(iv) }, [])
+  useEffect(() => {
+    load()
+
+    let es: EventSource | null = null
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    let destroyed = false
+
+    const connect = async () => {
+      if (destroyed) return
+      try {
+        const { token } = await messagesApi.streamToken()
+        if (destroyed) return
+        const base = import.meta.env.VITE_API_URL ?? ''
+        es = new EventSource(`${base}/api/guard/messages/stream?token=${token}`)
+        es.addEventListener('message', (e: MessageEvent) => {
+          const msg = JSON.parse(e.data)
+          setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
+        })
+        es.onerror = () => {
+          es?.close()
+          es = null
+          if (!destroyed) reconnectTimer = setTimeout(connect, 5000)
+        }
+      } catch {
+        if (!destroyed) reconnectTimer = setTimeout(connect, 5000)
+      }
+    }
+
+    connect()
+
+    return () => {
+      destroyed = true
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+      es?.close()
+    }
+  }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   const send = async () => {

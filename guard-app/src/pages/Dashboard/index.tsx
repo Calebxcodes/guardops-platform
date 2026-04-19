@@ -52,7 +52,13 @@ export default function Dashboard() {
   useEffect(() => {
     loadData()
     const ticker = setInterval(() => setNow(new Date()), 60000)
-    return () => clearInterval(ticker)
+    // Reload shift data after offline queue is flushed
+    const onSynced = () => loadData()
+    window.addEventListener('offline-synced', onSynced)
+    return () => {
+      clearInterval(ticker)
+      window.removeEventListener('offline-synced', onSynced)
+    }
   }, [loadData])
 
   // Hourly check prompt — fires when shift is active and ≥1hr since last check/clock-in

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { MapPin, CheckCircle, AlertCircle, Loader, ScanFace, Navigation, RefreshCw } from 'lucide-react'
+import { MapPin, CheckCircle, AlertCircle, Loader, ScanFace, Navigation, RefreshCw, WifiOff } from 'lucide-react'
 import { shiftsApi, profileApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
 import { GuardShift } from '../../types'
 import { format } from 'date-fns'
 import FaceCapture from '../../components/FaceCapture'
 import { useNavigate } from 'react-router-dom'
+import { enqueue } from '../../lib/offlineQueue'
 
 const DEFAULT_GEOFENCE_METERS = 183
 
@@ -24,7 +25,7 @@ interface Props {
   onSuccess: (shift: GuardShift) => void
 }
 
-type Step = 'confirm' | 'locating' | 'face' | 'face_fail' | 'ready' | 'submitting' | 'success' | 'error'
+type Step = 'confirm' | 'locating' | 'face' | 'face_fail' | 'ready' | 'submitting' | 'success' | 'queued' | 'error'
 
 export default function ClockInModal({ shift, action, onClose, onSuccess }: Props) {
   const guard    = useAuthStore(s => s.guard)
@@ -87,18 +88,36 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
   }
 
   const handleConfirm = async () => {
-    // Guard against submitting without face verification
     if (hasFaceId && !faceVerified) return
 
     setStep('submitting')
+    const payload = {
+      shift_id: shift.id, ...location, face_verified: faceVerified,
+      clocked_at: new Date().toISOString(),
+    }
+
+    const queueOffline = async () => {
+      await enqueue({
+        type: action === 'in' ? 'clock-in' : 'clock-out',
+        url: `/api/guard/shifts/${action === 'in' ? 'clock-in' : 'clock-out'}`,
+        method: 'POST',
+        data: payload,
+        enqueuedAt: payload.clocked_at,
+      })
+      setStep('queued')
+      onSuccess({ ...shift, status: action === 'in' ? 'active' : 'completed' })
+    }
+
+    if (!navigator.onLine) { await queueOffline(); return }
+
     try {
-      const data = { shift_id: shift.id, ...location, face_verified: faceVerified }
-      const res  = action === 'in' ? await shiftsApi.clockIn(data) : await shiftsApi.clockOut(data)
+      const res = action === 'in' ? await shiftsApi.clockIn(payload) : await shiftsApi.clockOut(payload)
       setResult(res)
       setStep('success')
       const updated = await shiftsApi.today()
       onSuccess(updated || { ...shift, status: action === 'in' ? 'active' : 'completed' })
     } catch (e: any) {
+      if (!e.response) { await queueOffline(); return }
       setError(e.response?.data?.error || 'Failed. Please try again.')
       setStep('error')
     }
@@ -306,6 +325,23 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
           <div className="text-center py-8">
             <Loader size={40} className="animate-spin text-brand-400 mx-auto mb-4" />
             <p className="text-white font-medium">Recording your clock {action}...</p>
+          </div>
+        )}
+
+        {/* ── Step: queued (offline) ── */}
+        {step === 'queued' && (
+          <div className="text-center py-6">
+            <div className="w-16 h-16 rounded-full bg-yellow-900/40 border border-yellow-700/40 flex items-center justify-center mx-auto mb-4">
+              <WifiOff size={30} className="text-yellow-400" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Queued for Sync</h2>
+            <p className="text-white/50 text-sm mt-2">
+              You're offline. Your clock {action === 'in' ? 'in' : 'out'} has been saved and will sync automatically when your connection is restored.
+            </p>
+            <p className="text-yellow-400/70 text-xs mt-3">
+              Recorded at {format(new Date(), 'h:mm a')}
+            </p>
+            <button onClick={onClose} className="mt-6 w-full py-3.5 rounded-xl bg-brand-600 text-white font-semibold">Done</button>
           </div>
         )}
 

@@ -5,8 +5,16 @@
 import { Router, Request, Response } from 'express'
 import { query } from '../db/schema'
 import { notifyGuard, notifyAllGuards } from '../services/push'
+import { pushToGuard } from '../services/sse'
+import { issueAdminStreamToken } from '../services/streamTokens'
 
 const router = Router()
+
+/** Issue a short-lived stream token so the admin can open an SSE connection */
+router.post('/stream-token', (req: any, res: Response) => {
+  const token = issueAdminStreamToken(req.adminId)
+  res.json({ token })
+})
 
 /** List all guard messages (thread view for admin) */
 router.get('/', async (_req: Request, res: Response) => {
@@ -30,10 +38,11 @@ router.post('/send', async (req: Request, res: Response) => {
     // Insert one message per active guard
     const { rows: guards } = await query('SELECT id FROM guards WHERE active = 1')
     for (const g of guards) {
-      await query(
-        'INSERT INTO messages (from_guard_id, to_guard_id, body) VALUES (0, $1, $2)',
+      const { rows: inserted } = await query(
+        'INSERT INTO messages (from_guard_id, to_guard_id, body) VALUES (0, $1, $2) RETURNING *',
         [g.id, body]
       )
+      pushToGuard(g.id, 'message', inserted[0])
     }
     await notifyAllGuards({
       title: 'Message from Operations',
@@ -51,6 +60,7 @@ router.post('/send', async (req: Request, res: Response) => {
     'INSERT INTO messages (from_guard_id, to_guard_id, body) VALUES (0, $1, $2) RETURNING *',
     [to_guard_id, body]
   )
+  pushToGuard(to_guard_id, 'message', rows[0])
 
   await notifyGuard(to_guard_id, {
     title: 'New message from Operations',

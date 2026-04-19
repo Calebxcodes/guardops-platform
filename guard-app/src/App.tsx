@@ -15,6 +15,7 @@ import MapPage from './pages/Map'
 import Messages from './pages/Messages'
 import Incidents from './pages/Incidents'
 import Profile from './pages/Profile'
+import DocumentsPage from './pages/Documents'
 
 /** Listen for PUSH_NAVIGATE messages from the service worker */
 function PushNavigationListener() {
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="map" element={<MapPage />} />
           <Route path="messages" element={<Messages />} />
           <Route path="incidents" element={<Incidents />} />
+          <Route path="documents" element={<DocumentsPage />} />
           <Route path="profile" element={<Profile />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

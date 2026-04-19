@@ -14,6 +14,8 @@ import Compliance from './pages/Compliance'
 import ClientPortalAdmin from './pages/ClientPortal'
 import PortalView from './pages/ClientPortal/PortalView'
 import Messages from './pages/Messages'
+import Analytics from './pages/Analytics'
+import Documents from './pages/Documents'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import { useAuthStore } from './store/authStore'
@@ -48,6 +50,8 @@ export default function App() {
           <Route path="compliance" element={<Compliance />} />
           <Route path="portal" element={<ClientPortalAdmin />} />
           <Route path="messages" element={<Messages />} />
+          <Route path="analytics" element={<Analytics />} />
+          <Route path="documents" element={<Documents />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

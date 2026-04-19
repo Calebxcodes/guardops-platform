@@ -28,8 +28,13 @@ import aiReportRouter from './routes/aiReport'
 import clientPortalRouter from './routes/clientPortal'
 import pushRouter from './routes/push'
 import adminMessagesRouter from './routes/adminMessages'
+import analyticsRouter from './routes/analytics'
+import documentsRouter from './routes/documents'
+import guardDocumentsRouter from './routes/guardDocuments'
 import { notifyGuard } from './services/push'
 import * as Sentry from '@sentry/node'
+import { registerGuardSSE, registerAdminSSE } from './services/sse'
+import { consumeGuardStreamToken, consumeAdminStreamToken } from './services/streamTokens'
 
 // ── Environment validation (fail fast if critical vars are missing) ────────
 const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET']
@@ -73,6 +78,7 @@ app.use(cors({
 }))
 
 // Reduce body limit — face descriptors are ~1 KB, normal requests much less
+// File uploads use multer (multipart), not this JSON parser
 app.use(express.json({ limit: '512kb' }))
 
 // ── Rate limiting (PostgreSQL-backed — enforced across all instances) ─────────
@@ -164,10 +170,37 @@ app.use('/api/portal', clientPortalRouter)
 app.use('/api/auth', authRouter)
 app.use('/api/guard/shifts', guardShiftsRouter)
 app.use('/api/guard/timesheets', guardTimesheetsRouter)
-app.use('/api/guard/messages', guardMessagesRouter)
-app.use('/api/guard/profile', guardProfileRouter)
-app.use('/api/guard/push',    pushRouter)
-app.use('/api/messages',      requireAdmin, adminMessagesRouter)
+// SSE stream endpoints — authenticated via one-time stream token (EventSource can't send headers)
+// Must be registered BEFORE the guarded router mounts below
+app.get('/api/guard/messages/stream', (req, res) => {
+  const guardId = consumeGuardStreamToken(String(req.query.token ?? ''))
+  if (!guardId) return res.status(401).json({ error: 'Invalid or expired stream token' })
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
+  const cleanup = registerGuardSSE(guardId, res)
+  req.on('close', cleanup)
+})
+
+app.get('/api/messages/stream', (req, res) => {
+  const adminId = consumeAdminStreamToken(String(req.query.token ?? ''))
+  if (!adminId) return res.status(401).json({ error: 'Invalid or expired stream token' })
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
+  const cleanup = registerAdminSSE(res)
+  req.on('close', cleanup)
+})
+
+app.use('/api/guard/messages',   guardMessagesRouter)
+app.use('/api/guard/profile',    guardProfileRouter)
+app.use('/api/guard/push',       pushRouter)
+app.use('/api/guard/documents',  guardDocumentsRouter)
+app.use('/api/messages',         requireAdmin, adminMessagesRouter)
+app.use('/api/analytics',        requireAdmin, analyticsRouter)
+app.use('/api/documents',        requireAdmin, documentsRouter)
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 

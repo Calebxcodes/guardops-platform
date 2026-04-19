@@ -1,0 +1,68 @@
+name: Rollback Backend
+
+# Manual trigger only — used in production incidents to revert the backend
+# to a known-good commit without going through the normal CI pipeline.
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Commit SHA to roll back to (leave blank for previous commit on master)'
+        required: false
+        type: string
+      confirm:
+        description: 'Type ROLLBACK to confirm you want to do this'
+        required: true
+        type: string
+
+jobs:
+  rollback:
+    name: Rollback Railway → ${{ inputs.commit_sha || 'previous commit' }}
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Verify confirmation
+        if: inputs.confirm != 'ROLLBACK'
+        run: |
+          echo "❌ Confirmation text was '${{ inputs.confirm }}', expected 'ROLLBACK'."
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          # Fetch full history so we can resolve "previous commit"
+          fetch-depth: 0
+
+      - name: Resolve target commit
+        id: resolve
+        run: |
+          if [ -n "${{ inputs.commit_sha }}" ]; then
+            TARGET="${{ inputs.commit_sha }}"
+          else
+            # One commit before the current HEAD on master
+            TARGET=$(git log master --format="%H" | sed -n '2p')
+          fi
+          echo "target=$TARGET" >> $GITHUB_OUTPUT
+          echo "Rolling back to $TARGET"
+
+      - name: Checkout target commit
+        run: git checkout ${{ steps.resolve.outputs.target }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy rollback
+        run: railway up --service backend
+        working-directory: backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "### ✅ Rollback Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Backend rolled back to commit \`${{ steps.resolve.outputs.target }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Verify the service is healthy in Railway" >> $GITHUB_STEP_SUMMARY
+          echo "2. Fix the root cause in a new branch" >> $GITHUB_STEP_SUMMARY
+          echo "3. Merge a hotfix PR through the normal CI pipeline" >> $GITHUB_STEP_SUMMARY

@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, MapPin, Calendar, ClipboardList,
   DollarSign, BarChart2, AlertTriangle, Settings, Shield,
-  ShieldCheck, ExternalLink, MessageSquare, LogOut, Menu, X
+  ShieldCheck, ExternalLink, MessageSquare, LogOut, Menu, X, FolderOpen, LineChart
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
@@ -19,10 +19,12 @@ const nav = [
   { to: '/timesheets', label: 'Timesheets',      icon: ClipboardList },
   { to: '/payroll',    label: 'Payroll',         icon: DollarSign },
   { to: '/financial',  label: 'Financial',       icon: BarChart2 },
+  { to: '/analytics',  label: 'Analytics',       icon: LineChart },
   { to: '/incidents',  label: 'Incidents',       icon: AlertTriangle },
   { to: '/compliance', label: 'SIA Compliance',  icon: ShieldCheck },
   { to: '/portal',     label: 'Client Portal',   icon: ExternalLink },
   { to: '/messages',   label: 'Messages',        icon: MessageSquare },
+  { to: '/documents',  label: 'Documents',       icon: FolderOpen },
   { to: '/settings',   label: 'Settings',        icon: Settings },
 ]
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Site, Client } from '../../types'
-import { sitesApi, clientsApi } from '../../api'
+import { sitesApi, clientsApi, checklistApi, checkpointsApi } from '../../api'
 import Modal from '../../components/Modal'
 import { Plus, Search, Edit, Trash2, Building2, Users, PoundSterling, MapPin } from 'lucide-react'
 import SiteForm from './SiteForm'
@@ -31,8 +31,19 @@ export default function Sites() {
   )
 
   const saveSite = async (data: any) => {
-    if (editingSite) await sitesApi.update(editingSite.id, data)
-    else await sitesApi.create(data)
+    const { checklist, checkpoints, ...siteData } = data
+    let site: any
+    if (editingSite) {
+      site = await sitesApi.update(editingSite.id, siteData)
+      if (checklist !== undefined)    await checklistApi.update(editingSite.id, checklist)
+      if (checkpoints !== undefined)  await checkpointsApi.update(editingSite.id, checkpoints)
+    } else {
+      site = await sitesApi.create(siteData)
+      if (site?.id) {
+        if (checklist !== undefined)   await checklistApi.update(site.id, checklist)
+        if (checkpoints !== undefined) await checkpointsApi.update(site.id, checkpoints)
+      }
+    }
     setShowSiteForm(false); setEditingSite(null); load()
   }
 
