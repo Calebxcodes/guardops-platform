@@ -37,6 +37,20 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React stack
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // Icons
+          'vendor-icons': ['lucide-react'],
+          // Utilities
+          'vendor-utils': ['axios', 'date-fns', 'zustand', 'clsx'],
+        },
+      },
+    },
+  },
   server: {
     port: 5174,
     proxy: {

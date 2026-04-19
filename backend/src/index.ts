@@ -3,6 +3,7 @@ import 'dotenv/config'
 import 'express-async-errors'
 import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
+import compression from 'compression'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import cron from 'node-cron'
@@ -50,6 +51,9 @@ const IS_PROD = process.env.NODE_ENV === 'production'
 
 // Trust Railway / Vercel reverse proxy so rate-limiter sees real client IPs
 app.set('trust proxy', 1)
+
+// ── Response compression (gzip / br) ─────────────────────────────────────────
+app.use(compression())
 
 // ── Security headers ──────────────────────────────────────────────────────
 app.use(helmet({

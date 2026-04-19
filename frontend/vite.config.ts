@@ -41,6 +41,22 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React stack — cached across all navigations
+          'vendor-react':  ['react', 'react-dom', 'react-router-dom'],
+          // Charting lib is large (~400 KB) and only used on Analytics page
+          'vendor-charts': ['recharts'],
+          // Icons ship as individual ESM modules but tree-shake well — bundle together
+          'vendor-icons':  ['lucide-react'],
+          // Utility libraries
+          'vendor-utils':  ['axios', 'date-fns', 'zustand', 'clsx'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

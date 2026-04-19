@@ -326,6 +326,35 @@ export async function initSchema() {
     CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log (created_at DESC);
   `)
 
+  // ── Performance indexes ────────────────────────────────────────────────────
+  // These cover the most frequent query patterns across all routes.
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS shifts_guard_idx       ON shifts (guard_id);
+    CREATE INDEX IF NOT EXISTS shifts_site_idx        ON shifts (site_id);
+    CREATE INDEX IF NOT EXISTS shifts_status_idx      ON shifts (status);
+    CREATE INDEX IF NOT EXISTS shifts_start_time_idx  ON shifts (start_time);
+    CREATE INDEX IF NOT EXISTS shifts_guard_status_idx ON shifts (guard_id, status);
+
+    CREATE INDEX IF NOT EXISTS timesheets_guard_idx   ON timesheets (guard_id);
+    CREATE INDEX IF NOT EXISTS timesheets_status_idx  ON timesheets (status);
+    CREATE INDEX IF NOT EXISTS timesheets_shift_idx   ON timesheets (shift_id);
+
+    CREATE INDEX IF NOT EXISTS incidents_site_idx     ON incidents (site_id);
+    CREATE INDEX IF NOT EXISTS incidents_guard_idx    ON incidents (guard_id);
+    CREATE INDEX IF NOT EXISTS incidents_resolved_idx ON incidents (resolved);
+    CREATE INDEX IF NOT EXISTS incidents_created_idx  ON incidents (created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS payroll_guard_idx      ON payroll (guard_id);
+    CREATE INDEX IF NOT EXISTS payroll_period_idx     ON payroll (period_start, period_end);
+
+    CREATE INDEX IF NOT EXISTS messages_guard_idx     ON messages (guard_id);
+    CREATE INDEX IF NOT EXISTS messages_read_at_idx   ON messages (read_at);
+
+    CREATE INDEX IF NOT EXISTS clock_events_shift_idx   ON clock_events (shift_id);
+    CREATE INDEX IF NOT EXISTS shift_checks_shift_idx   ON shift_checks (shift_id);
+    CREATE INDEX IF NOT EXISTS checkpoint_scans_shift_idx ON checkpoint_scans (shift_id);
+  `)
+
   // OAuth SSO columns — added as a migration so existing deployments upgrade in place
   await pool.query(`
     ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS oauth_provider TEXT;
