@@ -99,6 +99,7 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
     const queueOffline = async () => {
       await enqueue({
         type: action === 'in' ? 'clock-in' : 'clock-out',
+        label: action === 'in' ? `Clock In — ${shift.site_name}` : `Clock Out — ${shift.site_name}`,
         url: `/api/guard/shifts/${action === 'in' ? 'clock-in' : 'clock-out'}`,
         method: 'POST',
         data: payload,

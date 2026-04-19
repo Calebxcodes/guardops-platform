@@ -1,22 +1,45 @@
-import { useEffect, useState, useRef } from 'react'
-import { Send, AlertTriangle, ShieldAlert } from 'lucide-react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { Send, AlertTriangle, ShieldAlert, WifiOff, Clock } from 'lucide-react'
 import { messagesApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
 import { Message } from '../../types'
 import { format } from 'date-fns'
 import BottomSheet from '../../components/ui/BottomSheet'
+import { enqueue } from '../../lib/offlineQueue'
+import { cacheSet, cacheGet } from '../../lib/offlineCache'
 
 export default function Messages() {
   const guard = useAuthStore(s => s.guard)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [sending, setSending] = useState(false)
+  const [messages, setMessages]         = useState<Message[]>([])
+  const [input, setInput]               = useState('')
+  const [loading, setLoading]           = useState(true)
+  const [sending, setSending]           = useState(false)
   const [showEmergency, setShowEmergency] = useState(false)
   const [emergencyMsg, setEmergencyMsg] = useState('')
+  const [isOffline, setIsOffline]       = useState(!navigator.onLine)
+  const [lastQueued, setLastQueued]     = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const load = () => messagesApi.list().then(data => { setMessages(data); setLoading(false) })
+  useEffect(() => {
+    const up   = () => setIsOffline(false)
+    const down = () => setIsOffline(true)
+    window.addEventListener('online',  up)
+    window.addEventListener('offline', down)
+    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down) }
+  }, [])
+
+  const load = useCallback(async () => {
+    try {
+      const data = await messagesApi.list()
+      setMessages(data)
+      setLoading(false)
+      await cacheSet('messages', data)
+    } catch {
+      const cached = await cacheGet<Message[]>('messages')
+      if (cached) setMessages(cached)
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     load()
@@ -53,17 +76,43 @@ export default function Messages() {
       if (reconnectTimer) clearTimeout(reconnectTimer)
       es?.close()
     }
-  }, [])
+  }, [load])
+
+  // Reload when queued messages are flushed
+  useEffect(() => {
+    const onSynced = () => load()
+    window.addEventListener('offline-synced', onSynced)
+    return () => window.removeEventListener('offline-synced', onSynced)
+  }, [load])
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   const send = async () => {
     if (!input.trim()) return
+    const body = input.trim()
     setSending(true)
     try {
-      await messagesApi.send(input.trim())
+      if (!navigator.onLine) {
+        await enqueue({
+          type: 'message',
+          label: `Message: "${body.length > 40 ? body.slice(0, 40) + '…' : body}"`,
+          url: '/api/guard/messages',
+          method: 'POST',
+          data: { body },
+          enqueuedAt: new Date().toISOString(),
+        })
+        setInput('')
+        setLastQueued(body)
+        // Clear the "queued" notice after 4s
+        setTimeout(() => setLastQueued(null), 4000)
+        return
+      }
+      await messagesApi.send(body)
       setInput('')
       load()
-    } finally { setSending(false) }
+    } finally {
+      setSending(false)
+    }
   }
 
   const sendEmergency = async () => {
@@ -88,11 +137,19 @@ export default function Messages() {
       <div className="px-4 pt-14 pb-3 border-b border-white/5 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Messages</h1>
-          <p className="text-white/30 text-xs">Manager & Supervisor</p>
+          <p className="text-white/30 text-xs">
+            {isOffline ? (
+              <span className="flex items-center gap-1 text-yellow-400">
+                <WifiOff size={10} /> Offline — messages will send when reconnected
+              </span>
+            ) : 'Manager & Supervisor'}
+          </p>
         </div>
         <button
           onClick={() => setShowEmergency(true)}
-          className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-xl text-sm font-semibold"
+          disabled={isOffline}
+          className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white px-3 py-2 rounded-xl text-sm font-semibold"
+          title={isOffline ? 'Emergency alerts require a connection' : undefined}
         >
           <ShieldAlert size={16} /> SOS
         </button>
@@ -128,12 +185,21 @@ export default function Messages() {
         <div ref={bottomRef} />
       </div>
 
+      {/* Queued notice */}
+      {lastQueued && (
+        <div className="fixed bottom-32 inset-x-4 max-w-lg mx-auto bg-yellow-900/80 border border-yellow-700/50 rounded-xl px-4 py-2.5 flex items-center gap-2 text-yellow-300 text-xs z-10">
+          <Clock size={12} className="shrink-0" />
+          <span className="flex-1 truncate">Queued: "{lastQueued.length > 50 ? lastQueued.slice(0, 50) + '…' : lastQueued}"</span>
+          <span className="text-yellow-400/60">will send when online</span>
+        </div>
+      )}
+
       {/* Input */}
       <div className="fixed bottom-16 left-0 right-0 max-w-lg mx-auto px-4 pb-3 bg-surface border-t border-white/5 pt-3">
         <div className="flex items-center gap-2">
           <input
             className="flex-1 bg-surface-card border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-brand-500 text-sm"
-            placeholder="Message manager..."
+            placeholder={isOffline ? 'Message (will send when online)…' : 'Message manager…'}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
@@ -141,9 +207,12 @@ export default function Messages() {
           <button
             onClick={send}
             disabled={!input.trim() || sending}
-            className="w-11 h-11 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 rounded-xl flex items-center justify-center shrink-0"
+            className={`w-11 h-11 disabled:opacity-40 rounded-xl flex items-center justify-center shrink-0 ${
+              isOffline ? 'bg-yellow-700 hover:bg-yellow-600' : 'bg-brand-600 hover:bg-brand-700'
+            }`}
+            title={isOffline ? 'Queue message (offline)' : 'Send'}
           >
-            <Send size={18} />
+            {isOffline ? <Clock size={16} /> : <Send size={18} />}
           </button>
         </div>
       </div>
@@ -157,6 +226,12 @@ export default function Messages() {
               <p className="text-red-300 font-semibold">Send Emergency Alert</p>
               <p className="text-white/40 text-sm mt-1">Your manager will be notified immediately with your location</p>
             </div>
+            {isOffline && (
+              <div className="bg-red-900/40 border border-red-700/40 rounded-xl px-4 py-3 flex items-center gap-2 text-red-300 text-sm">
+                <WifiOff size={14} className="shrink-0" />
+                <span>You're offline — emergency alerts cannot be sent without a connection. Call emergency services directly if urgent.</span>
+              </div>
+            )}
             <div>
               <label className="block text-white/40 text-xs mb-1.5">Describe the emergency (optional)</label>
               <textarea
@@ -169,7 +244,11 @@ export default function Messages() {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowEmergency(false)} className="flex-1 py-3.5 rounded-xl border border-white/10 text-white/60 font-medium">Cancel</button>
-              <button onClick={sendEmergency} className="flex-1 py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold">
+              <button
+                onClick={sendEmergency}
+                disabled={isOffline}
+                className="flex-1 py-3.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-bold"
+              >
                 🚨 Send Alert
               </button>
             </div>

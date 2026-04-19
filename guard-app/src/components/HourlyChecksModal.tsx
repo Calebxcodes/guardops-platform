@@ -70,6 +70,7 @@ export default function HourlyChecksModal({ shiftId, checkNumber, onComplete, on
         // Queue for later sync
         await enqueue({
           type: 'check',
+          label: `Hourly Check #${checkNumber}`,
           url: `/api/guard/shifts/${shiftId}/checks`,
           method: 'POST',
           data: payload,

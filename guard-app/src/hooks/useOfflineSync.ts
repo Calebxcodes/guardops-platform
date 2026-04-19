@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
-import { getAll, remove, count } from '../lib/offlineQueue'
+import { getAll, remove, QueueEntry } from '../lib/offlineQueue'
 
 export function useOfflineSync() {
   const [isOnline, setIsOnline]         = useState(navigator.onLine)
-  const [pendingCount, setPendingCount] = useState(0)
+  const [pendingItems, setPendingItems] = useState<QueueEntry[]>([])
   const [syncing, setSyncing]           = useState(false)
   const flushingRef = useRef(false)
 
-  const refreshCount = useCallback(async () => {
-    try { setPendingCount(await count()) } catch {}
+  const pendingCount = pendingItems.length
+
+  const refreshQueue = useCallback(async () => {
+    try { setPendingItems(await getAll()) } catch {}
   }, [])
 
   const flush = useCallback(async () => {
@@ -38,7 +40,7 @@ export function useOfflineSync() {
           anySynced = true
         } catch (err: any) {
           if (err.response) {
-            // Server rejected it (4xx/5xx) — discard, don't retry
+            // Server rejected (4xx/5xx) — discard, don't retry
             await remove(entry.id!)
           }
           // No response = still offline, keep in queue
@@ -47,15 +49,15 @@ export function useOfflineSync() {
     } finally {
       flushingRef.current = false
       setSyncing(false)
-      await refreshCount()
+      await refreshQueue()
       if (anySynced) {
         window.dispatchEvent(new CustomEvent('offline-synced'))
       }
     }
-  }, [refreshCount])
+  }, [refreshQueue])
 
   useEffect(() => {
-    refreshCount()
+    refreshQueue()
 
     const goOnline = () => {
       setIsOnline(true)
@@ -69,13 +71,12 @@ export function useOfflineSync() {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
     }
-  }, [flush, refreshCount])
+  }, [flush, refreshQueue])
 
-  // Also try a flush on mount in case the app was opened while online
-  // and there are stale entries from a previous offline session
+  // Flush stale queue on mount (app opened while online after a prior offline session)
   useEffect(() => {
     if (navigator.onLine) flush()
   }, [flush])
 
-  return { isOnline, pendingCount, syncing }
+  return { isOnline, pendingCount, pendingItems, syncing }
 }

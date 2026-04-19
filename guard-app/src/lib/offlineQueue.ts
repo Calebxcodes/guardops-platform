@@ -1,40 +1,28 @@
 /**
- * IndexedDB-backed offline queue.
+ * IndexedDB-backed offline action queue.
  * Stores API requests that could not be sent while the device was offline,
  * so they can be replayed in order once connectivity is restored.
  */
 
+import { openDB } from './db'
+
 export interface QueueEntry {
   id?: number
-  type: string          // 'clock-in' | 'clock-out' | 'check' etc — for UI labels
-  url: string           // full path e.g. '/api/guard/shifts/clock-in'
+  type: string          // 'clock-in' | 'clock-out' | 'check' | 'checkpoint-scan' | 'incident' | 'message'
+  label: string         // Human-readable label shown in the pending-sync banner
+  url: string           // Full path e.g. '/api/guard/shifts/clock-in'
   method: 'POST' | 'PUT' | 'PATCH'
   data: unknown
   enqueuedAt: string    // ISO timestamp of the original action
   retries: number
 }
 
-const DB_NAME    = 'guardops-offline'
-const STORE      = 'queue'
-const DB_VERSION = 1
-
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION)
-    req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(STORE)) {
-        req.result.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true })
-      }
-    }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror  = () => reject(req.error)
-  })
-}
+const STORE = 'queue'
 
 export async function enqueue(entry: Omit<QueueEntry, 'id' | 'retries'>): Promise<void> {
   const db = await openDB()
   await new Promise<void>((resolve, reject) => {
-    const tx   = db.transaction(STORE, 'readwrite')
+    const tx = db.transaction(STORE, 'readwrite')
     tx.objectStore(STORE).add({ ...entry, retries: 0 })
     tx.oncomplete = () => resolve()
     tx.onerror    = () => reject(tx.error)

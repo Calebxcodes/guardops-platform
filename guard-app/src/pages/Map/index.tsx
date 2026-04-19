@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { MapPin, Navigation, CheckCircle, AlertTriangle, Route, Loader, RefreshCw } from 'lucide-react'
+import { MapPin, Navigation, CheckCircle, AlertTriangle, Route, Loader, RefreshCw, WifiOff } from 'lucide-react'
 import { useShiftStore } from '../../store/shiftStore'
 import { shiftsApi } from '../../api'
 import Card from '../../components/ui/Card'
 import { format } from 'date-fns'
+import { enqueue } from '../../lib/offlineQueue'
+import { cacheSet, cacheGet } from '../../lib/offlineCache'
 
 interface Position { lat: number; lng: number; accuracy: number }
 
@@ -24,9 +26,18 @@ export default function MapPage() {
   const [geoError, setGeoError]       = useState('')
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([])
   const [loadingCps, setLoadingCps]   = useState(false)
-  const [scanning, setScanning]       = useState<number | null>(null) // checkpoint id being scanned
+  const [scanning, setScanning]       = useState<number | null>(null)
   const [scanError, setScanError]     = useState('')
+  const [isOffline, setIsOffline]     = useState(!navigator.onLine)
   const watchId = useRef<number | null>(null)
+
+  useEffect(() => {
+    const up   = () => setIsOffline(false)
+    const down = () => setIsOffline(true)
+    window.addEventListener('online',  up)
+    window.addEventListener('offline', down)
+    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down) }
+  }, [])
 
   // Load today's shift if not in store
   useEffect(() => {
@@ -39,8 +50,14 @@ export default function MapPage() {
     try {
       const data = await shiftsApi.getCheckpoints(todayShift.id)
       setCheckpoints(data)
-    } catch { /* no checkpoints configured */ }
-    finally { setLoadingCps(false) }
+      await cacheSet(`checkpoints:${todayShift.id}`, data)
+    } catch {
+      // Fall back to cached data when offline
+      const cached = await cacheGet<Checkpoint[]>(`checkpoints:${todayShift.id}`)
+      if (cached) setCheckpoints(cached)
+    } finally {
+      setLoadingCps(false)
+    }
   }, [todayShift?.id])
 
   useEffect(() => { loadCheckpoints() }, [loadCheckpoints])
@@ -79,14 +96,33 @@ export default function MapPage() {
     setScanning(cp.id)
     setScanError('')
     try {
-      await shiftsApi.scanCheckpoint(
-        todayShift.id,
-        cp.id,
-        position ? { lat: position.lat, lng: position.lng } : undefined
-      )
-      setCheckpoints(prev => prev.map(c =>
+      const scanData = position ? { lat: position.lat, lng: position.lng } : undefined
+
+      if (!navigator.onLine) {
+        // Queue for sync when connection returns
+        await enqueue({
+          type: 'checkpoint-scan',
+          label: `Patrol Scan — ${cp.name}`,
+          url: `/api/guard/shifts/${todayShift.id}/checkpoints/${cp.id}/checkin`,
+          method: 'POST',
+          data: scanData ?? {},
+          enqueuedAt: new Date().toISOString(),
+        })
+        // Optimistically mark scanned in state + cache
+        const updated = checkpoints.map(c =>
+          c.id === cp.id ? { ...c, scanned: true, scanned_at: new Date().toISOString() } : c
+        )
+        setCheckpoints(updated)
+        await cacheSet(`checkpoints:${todayShift.id}`, updated)
+        return
+      }
+
+      await shiftsApi.scanCheckpoint(todayShift.id, cp.id, scanData)
+      const updated = checkpoints.map(c =>
         c.id === cp.id ? { ...c, scanned: true, scanned_at: new Date().toISOString() } : c
-      ))
+      )
+      setCheckpoints(updated)
+      await cacheSet(`checkpoints:${todayShift.id}`, updated)
     } catch {
       setScanError(`Failed to scan "${cp.name}" — please try again.`)
     } finally {
@@ -104,13 +140,20 @@ export default function MapPage() {
     <div className="min-h-screen bg-surface px-4 pt-14 pb-4 space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">Map & Patrol</h1>
-        {total > 0 && (
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-            scanned === total ? 'bg-green-600/20 text-green-400' : 'bg-brand-600/20 text-brand-400'
-          }`}>
-            {scanned}/{total} scanned
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {isOffline && (
+            <span className="flex items-center gap-1 text-xs text-yellow-400 bg-yellow-900/30 border border-yellow-700/30 px-2 py-1 rounded-full">
+              <WifiOff size={11} /> Offline
+            </span>
+          )}
+          {total > 0 && (
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+              scanned === total ? 'bg-green-600/20 text-green-400' : 'bg-brand-600/20 text-brand-400'
+            }`}>
+              {scanned}/{total} scanned
+            </span>
+          )}
+        </div>
       </div>
 
       {/* GPS status */}
@@ -239,6 +282,7 @@ export default function MapPage() {
                     {cp.scanned && cp.scanned_at && (
                       <p className="text-green-400/60 text-xs mt-0.5">
                         Scanned at {format(new Date(cp.scanned_at), 'h:mm a')}
+                        {isOffline && <span className="text-yellow-400/60 ml-1.5">· queued</span>}
                       </p>
                     )}
                   </div>
@@ -251,7 +295,7 @@ export default function MapPage() {
                       className="shrink-0 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-xl flex items-center gap-1.5"
                     >
                       {scanning === cp.id ? <Loader size={12} className="animate-spin" /> : <CheckCircle size={12} />}
-                      Scan
+                      {isOffline ? 'Queue' : 'Scan'}
                     </button>
                   )}
                   {!cp.scanned && !isActive && (
