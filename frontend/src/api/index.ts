@@ -163,6 +163,15 @@ export const documentsApi = {
     `${import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'}/documents/${id}/download`,
 }
 
+export const notificationsApi = {
+  subscriptions: (): Promise<{ id: number; name: string; email: string; status: string; subscription_count: number; last_subscribed: string | null }[]> =>
+    api.get('/admin/notifications/subscriptions').then(r => r.data),
+  send: (data: { guard_id?: number; title: string; body: string; url?: string; urgency?: 'normal' | 'high' | 'critical' }): Promise<{ success: boolean; recipients: number }> =>
+    api.post('/admin/notifications/send', data).then(r => r.data),
+  history: (): Promise<{ id: number; action: string; guard_id: number | null; guard_name: string | null; extra: { title?: string; urgency?: string }; sent_by: string; created_at: string }[]> =>
+    api.get('/admin/notifications/history').then(r => r.data),
+}
+
 export const portalApi = {
   generate:    (client_id: number, label?: string) =>
     api.post('/portal/generate', { client_id, label }).then(r => r.data),

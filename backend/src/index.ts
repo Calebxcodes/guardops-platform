@@ -29,6 +29,7 @@ import aiReportRouter from './routes/aiReport'
 import clientPortalRouter from './routes/clientPortal'
 import pushRouter from './routes/push'
 import adminMessagesRouter from './routes/adminMessages'
+import adminNotificationsRouter from './routes/adminNotifications'
 import analyticsRouter from './routes/analytics'
 import documentsRouter from './routes/documents'
 import guardDocumentsRouter from './routes/guardDocuments'
@@ -203,6 +204,7 @@ app.use('/api/guard/profile',    guardProfileRouter)
 app.use('/api/guard/push',       pushRouter)
 app.use('/api/guard/documents',  guardDocumentsRouter)
 app.use('/api/messages',         requireAdmin, adminMessagesRouter)
+app.use('/api/admin/notifications', requireAdmin, adminNotificationsRouter)
 app.use('/api/analytics',        requireAdmin, analyticsRouter)
 app.use('/api/documents',        requireAdmin, documentsRouter)
 

@@ -26,6 +26,7 @@ const ClientPortalAdmin = lazy(() => import('./pages/ClientPortal'))
 const Messages        = lazy(() => import('./pages/Messages'))
 const Analytics       = lazy(() => import('./pages/Analytics'))
 const Documents       = lazy(() => import('./pages/Documents'))
+const Notifications   = lazy(() => import('./pages/Notifications'))
 
 // Full-screen spinner shown while a lazy chunk is loading
 function PageLoader() {
@@ -68,6 +69,7 @@ export default function App() {
             <Route path="portal"          element={<ClientPortalAdmin />} />
             <Route path="messages"        element={<Messages />} />
             <Route path="documents"       element={<Documents />} />
+            <Route path="notifications"   element={<Notifications />} />
             <Route path="settings"        element={<Settings />} />
           </Route>
         </Routes>
