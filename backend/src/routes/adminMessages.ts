@@ -22,7 +22,7 @@ router.get('/', async (_req: Request, res: Response) => {
     SELECT m.*,
       g.first_name, g.last_name, g.email
     FROM messages m
-    LEFT JOIN guards g ON g.id = COALESCE(NULLIF(m.from_guard_id, 0), NULLIF(m.to_guard_id, 0))
+    LEFT JOIN guards g ON g.id = COALESCE(m.from_guard_id, m.to_guard_id)
     ORDER BY m.created_at DESC
     LIMIT 200
   `)
@@ -39,7 +39,7 @@ router.post('/send', async (req: Request, res: Response) => {
     const { rows: guards } = await query('SELECT id FROM guards WHERE active = 1')
     for (const g of guards) {
       const { rows: inserted } = await query(
-        'INSERT INTO messages (from_guard_id, to_guard_id, body) VALUES (0, $1, $2) RETURNING *',
+        'INSERT INTO messages (from_guard_id, to_guard_id, body) VALUES (NULL, $1, $2) RETURNING *',
         [g.id, body]
       )
       pushToGuard(g.id, 'message', inserted[0])

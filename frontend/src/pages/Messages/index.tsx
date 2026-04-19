@@ -30,6 +30,7 @@ export default function Messages() {
   const [selected, setSelected]       = useState<Guard | null>(null)
   const [input, setInput]             = useState('')
   const [sending, setSending]         = useState(false)
+  const [sendError, setSendError]     = useState('')
   const [showBroadcast, setShowBroadcast] = useState(false)
   const [broadcastText, setBroadcastText] = useState('')
   const [broadcastSent, setBroadcastSent] = useState(false)
@@ -88,7 +89,7 @@ export default function Messages() {
   // Latest message per guard (for sidebar preview)
   const latestByGuard: Record<number, Message> = {}
   for (const m of messages) {
-    const gid = m.from_guard_id !== 0 ? m.from_guard_id : m.to_guard_id
+    const gid = m.from_guard_id != null ? m.from_guard_id : m.to_guard_id
     if (!latestByGuard[gid] || new Date(m.created_at) > new Date(latestByGuard[gid].created_at)) {
       latestByGuard[gid] = m
     }
@@ -97,7 +98,7 @@ export default function Messages() {
   // Unread count per guard (messages FROM guard not yet read)
   const unreadByGuard: Record<number, number> = {}
   for (const m of messages) {
-    if (m.from_guard_id !== 0 && !m.read_at) {
+    if (m.from_guard_id != null && !m.read_at) {
       unreadByGuard[m.from_guard_id] = (unreadByGuard[m.from_guard_id] || 0) + 1
     }
   }
@@ -114,11 +115,14 @@ export default function Messages() {
 
   const send = async () => {
     if (!input.trim() || !selected || sending) return
+    setSendError('')
     setSending(true)
     try {
       await messagesApi.send(selected.id, input.trim())
       setInput('')
       await loadMessages()
+    } catch (err: any) {
+      setSendError(err.response?.data?.error || 'Failed to send — please try again')
     } finally { setSending(false) }
   }
 
@@ -186,7 +190,7 @@ export default function Messages() {
                       <div className="text-sm font-medium text-gray-900 truncate">{g.first_name} {g.last_name}</div>
                       {latest ? (
                         <div className={`text-xs truncate mt-0.5 ${unread > 0 ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>
-                          {latest.from_guard_id === 0 ? 'You: ' : ''}{latest.body}
+                          {latest.from_guard_id == null ? 'You: ' : ''}{latest.body}
                         </div>
                       ) : (
                         <div className="text-xs text-gray-300 mt-0.5">No messages yet</div>
@@ -248,7 +252,7 @@ export default function Messages() {
                 </div>
               )}
               {thread.map(msg => {
-                const fromAdmin = msg.from_guard_id === 0
+                const fromAdmin = msg.from_guard_id == null
                 return (
                   <div key={msg.id} className={`flex ${fromAdmin ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
@@ -280,6 +284,9 @@ export default function Messages() {
             </div>
 
             {/* Input */}
+            {sendError && (
+              <div className="px-5 py-2 bg-red-50 border-t border-red-200 text-red-600 text-xs">{sendError}</div>
+            )}
             <div className="px-5 py-3 bg-white border-t flex items-center gap-3">
               <input
                 className="flex-1 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
