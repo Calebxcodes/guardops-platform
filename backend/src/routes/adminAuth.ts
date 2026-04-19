@@ -4,15 +4,42 @@ import crypto from 'crypto'
 import { query, auditLog } from '../db/schema'
 import jwt from 'jsonwebtoken'
 import { sendPasswordReset } from '../services/email'
-import { generateSecret as _totpGenSecret, verifySync as _totpVerify, generateURI as _totpURI } from 'otplib/dist/functional'
-
-// Adapters for otplib v13 functional API
+// Self-contained TOTP (RFC 6238) — no external dependency, works on any Node version
+function b32Decode(s: string): Buffer {
+  const alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+  const clean = s.toUpperCase().replace(/=+$/, '').replace(/[^A-Z2-7]/g, '')
+  let bits = 0, val = 0
+  const out: number[] = []
+  for (const ch of clean) {
+    val = (val << 5) | alpha.indexOf(ch); bits += 5
+    if (bits >= 8) { out.push((val >>> (bits - 8)) & 0xff); bits -= 8 }
+  }
+  return Buffer.from(out)
+}
+function b32Encode(buf: Buffer): string {
+  const alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+  let bits = 0, val = 0, result = ''
+  for (const byte of buf) { val = (val << 8) | byte; bits += 8; while (bits >= 5) { result += alpha[(val >>> (bits - 5)) & 0x1f]; bits -= 5 } }
+  if (bits > 0) result += alpha[(val << (5 - bits)) & 0x1f]
+  return result
+}
+function totpCode(secret: string, step: number): string {
+  const buf = Buffer.alloc(8); buf.writeBigUInt64BE(BigInt(step))
+  const hmac = crypto.createHmac('sha1', b32Decode(secret)).update(buf).digest()
+  const off = hmac[hmac.length - 1] & 0xf
+  const code = ((hmac[off] & 0x7f) << 24 | hmac[off+1] << 16 | hmac[off+2] << 8 | hmac[off+3]) % 1_000_000
+  return code.toString().padStart(6, '0')
+}
 const totp = {
-  generateSecret: () => _totpGenSecret({}),
+  generateSecret: (): string => b32Encode(crypto.randomBytes(20)),
   verify: (token: string, secret: string): boolean => {
-    try { const r = _totpVerify({ token, secret }); return (r as any).valid === true } catch { return false }
+    const step = Math.floor(Date.now() / 1000 / 30)
+    return [-1, 0, 1].some(d => totpCode(secret, step + d) === token.replace(/\s/g, ''))
   },
-  keyuri: (label: string, issuer: string, secret: string) => _totpURI({ label, issuer, secret }),
+  keyuri: (label: string, issuer: string, secret: string): string => {
+    const e = encodeURIComponent
+    return `otpauth://totp/${e(issuer)}:${e(label)}?secret=${secret}&issuer=${e(issuer)}&algorithm=SHA1&digits=6&period=30`
+  },
 }
 import QRCode from 'qrcode'
 
