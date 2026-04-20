@@ -57,7 +57,7 @@ router.post('/send', async (req: Request, res: Response) => {
   if (!to_guard_id) return res.status(400).json({ error: 'to_guard_id or is_broadcast is required' })
 
   const { rows } = await query(
-    'INSERT INTO messages (from_guard_id, to_guard_id, body) VALUES (0, $1, $2) RETURNING *',
+    'INSERT INTO messages (from_guard_id, to_guard_id, body) VALUES (NULL, $1, $2) RETURNING *',
     [to_guard_id, body]
   )
   pushToGuard(to_guard_id, 'message', rows[0])
