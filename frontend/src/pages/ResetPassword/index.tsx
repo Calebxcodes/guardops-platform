@@ -17,7 +17,7 @@ export default function ResetPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return }
+    if (password.length < 10) { setError('Password must be at least 10 characters'); return }
     if (password !== confirm) { setError('Passwords do not match'); return }
     setLoading(true)
     try {
@@ -67,9 +67,9 @@ export default function ResetPassword() {
               <label className="block text-sm font-medium text-gray-400 mb-1.5">New Password</label>
               <div className="relative">
                 <input
-                  type={showPass ? 'text' : 'password'} required minLength={8}
+                  type={showPass ? 'text' : 'password'} required minLength={10}
                   value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
+                  placeholder="Min. 10 characters"
                   className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                 />
                 <button type="button" onClick={() => setShowPass(v => !v)}
