@@ -13,14 +13,18 @@ api.interceptors.request.use(config => {
   return config
 })
 
-// Auto logout on 401
+// Auto logout on 401 — skip redirect for public auth endpoints (forgot/reset password)
 api.interceptors.response.use(
   r => r,
   err => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('admin_token')
-      localStorage.removeItem('admin_user')
-      window.location.href = '/login'
+      const url: string = err.config?.url ?? ''
+      const isPublicAuthRoute = url.includes('forgot-password') || url.includes('reset-password')
+      if (!isPublicAuthRoute) {
+        localStorage.removeItem('admin_token')
+        localStorage.removeItem('admin_user')
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(err)
   }
