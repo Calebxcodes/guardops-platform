@@ -44,6 +44,7 @@ import masterAdminTenantsRouter from './routes/masterAdminTenants'
 import masterAdminPaymentsRouter from './routes/masterAdminPayments'
 import masterAdminUsersRouter from './routes/masterAdminUsers'
 import masterAdminFlagsRouter from './routes/masterAdminFlags'
+import featureFlagsRouter from './routes/featureFlags'
 import { runBillingCron } from './services/billingCron'
 import { runRenewalCron } from './services/renewalCron'
 
@@ -222,6 +223,9 @@ app.use('/api/documents',        requireAdmin, documentsRouter)
 
 // ── Multi-tenant signup (public — no auth required) ───────────────────────
 app.use('/api', signupRouter)
+
+// ── Feature flags (public — tenant-aware) ─────────────────────────────────
+app.use('/api', featureFlagsRouter)
 
 // ── Master admin panel ────────────────────────────────────────────────────
 app.use('/api/master-admin', masterAdminAuthRouter)

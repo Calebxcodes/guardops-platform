@@ -9,6 +9,7 @@ import {
 import StatusBadge from '../../components/StatusBadge'
 import InstallPromptButton from '../../components/InstallPromptButton'
 import PrivacyDialog from '../../components/PrivacyDialog'
+import { OnboardingBanner } from '../../components/OnboardingBanner'
 import { format, isPast, differenceInMinutes } from 'date-fns'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -87,6 +88,7 @@ export default function Dashboard() {
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       {showPrivacy && <PrivacyDialog onClose={() => setShowPrivacy(false)} />}
+      <OnboardingBanner />
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
