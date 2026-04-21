@@ -5,7 +5,7 @@ import {
   ChevronDown, ArrowRight, Check, X, MessageSquare, Send,
   Phone, Mail, Star, Zap, Lock, Eye, BarChart3,
   CalendarCheck, FileText, ExternalLink, Menu, Layers,
-  CreditCard, Bell, TrendingUp, Activity
+  CreditCard, TrendingUp
 } from 'lucide-react'
 import './index.css'
 
