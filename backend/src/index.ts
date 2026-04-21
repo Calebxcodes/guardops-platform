@@ -37,6 +37,7 @@ import { notifyGuard } from './services/push'
 import * as Sentry from '@sentry/node'
 import { registerGuardSSE, registerAdminSSE } from './services/sse'
 import { consumeGuardStreamToken, consumeAdminStreamToken } from './services/streamTokens'
+import signupRouter from './routes/signupV2'
 
 // ── Environment validation (fail fast if critical vars are missing) ────────
 const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET']
@@ -207,6 +208,9 @@ app.use('/api/messages',         requireAdmin, adminMessagesRouter)
 app.use('/api/admin/notifications', requireAdmin, adminNotificationsRouter)
 app.use('/api/analytics',        requireAdmin, analyticsRouter)
 app.use('/api/documents',        requireAdmin, documentsRouter)
+
+// ── Multi-tenant signup (public — no auth required) ───────────────────────
+app.use('/api', signupRouter)
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
