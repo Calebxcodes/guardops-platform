@@ -39,6 +39,11 @@ import { registerGuardSSE, registerAdminSSE } from './services/sse'
 import { consumeGuardStreamToken, consumeAdminStreamToken } from './services/streamTokens'
 import signupRouter from './routes/signupV2'
 import stripeWebhookRouter from './routes/webhooks/stripe'
+import masterAdminAuthRouter from './routes/masterAdminAuth'
+import masterAdminTenantsRouter from './routes/masterAdminTenants'
+import masterAdminPaymentsRouter from './routes/masterAdminPayments'
+import masterAdminUsersRouter from './routes/masterAdminUsers'
+import masterAdminFlagsRouter from './routes/masterAdminFlags'
 import { runBillingCron } from './services/billingCron'
 import { runRenewalCron } from './services/renewalCron'
 
@@ -217,6 +222,13 @@ app.use('/api/documents',        requireAdmin, documentsRouter)
 
 // ── Multi-tenant signup (public — no auth required) ───────────────────────
 app.use('/api', signupRouter)
+
+// ── Master admin panel ────────────────────────────────────────────────────
+app.use('/api/master-admin', masterAdminAuthRouter)
+app.use('/api/master-admin', masterAdminTenantsRouter)
+app.use('/api/master-admin', masterAdminPaymentsRouter)
+app.use('/api/master-admin', masterAdminUsersRouter)
+app.use('/api/master-admin', masterAdminFlagsRouter)
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
