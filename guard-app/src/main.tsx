@@ -14,6 +14,12 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     initialScope: {
       tags: { app: 'guardops-guard' },
     },
+    beforeSend(event, hint) {
+      const err = hint?.originalException as any
+      // Suppress expected 401s (expired JWT) — not actionable noise
+      if (err?.response?.status === 401 || err?.status === 401) return null
+      return event
+    },
   })
 }
 
