@@ -38,6 +38,9 @@ import * as Sentry from '@sentry/node'
 import { registerGuardSSE, registerAdminSSE } from './services/sse'
 import { consumeGuardStreamToken, consumeAdminStreamToken } from './services/streamTokens'
 import signupRouter from './routes/signupV2'
+import stripeWebhookRouter from './routes/webhooks/stripe'
+import { runBillingCron } from './services/billingCron'
+import { runRenewalCron } from './services/renewalCron'
 
 // ── Environment validation (fail fast if critical vars are missing) ────────
 const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET']
@@ -82,6 +85,9 @@ app.use(cors({
   },
   credentials: true,
 }))
+
+// Stripe webhooks must receive the raw body for signature verification
+app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookRouter)
 
 // Reduce body limit — face descriptors are ~1 KB, normal requests much less
 // File uploads use multer (multipart), not this JSON parser
@@ -252,11 +258,22 @@ async function start() {
 
   await ensureDefaultAdmin()
 
-  // Daily alert cron — runs every day at 08:00 server time
+  // Daily alert cron — runs every day at 08:00 UTC
   cron.schedule('0 8 * * *', () => {
     runDailyAlerts().catch(e => console.error('[Alerts] cron error:', e))
   })
   console.log('Daily alerts cron scheduled (08:00 daily)')
+
+  // Billing cron — trial-to-paid conversion at 08:00 UTC
+  cron.schedule('0 8 * * *', () => {
+    runBillingCron().catch(e => console.error('[BillingCron] error:', e))
+  })
+
+  // Renewal cron — failed payment retries at 08:30 UTC
+  cron.schedule('30 8 * * *', () => {
+    runRenewalCron().catch(e => console.error('[RenewalCron] error:', e))
+  })
+  console.log('Billing crons scheduled (08:00 / 08:30 UTC)')
 
   // ── Push notification crons ────────────────────────────────────────────────
 
