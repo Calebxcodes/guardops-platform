@@ -1,7 +1,7 @@
 {
   "name": "security-guard-crm",
   "private": true,
-  "workspaces": ["frontend", "backend", "guard-app"],
+  "workspaces": ["frontend", "backend", "guard-app", "master-admin"],
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\" \"npm run dev --workspace=guard-app\"",
     "dev:crm": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
