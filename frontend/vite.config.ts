@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.png', 'apple-touch-icon.png', 'icon.svg'],
+      includeAssets: ['favicon.svg', 'favicon.png', 'apple-touch-icon.png', 'icon.svg'],
       manifest: {
         name: 'Strondis Ops',
         short_name: 'Strondis Ops',

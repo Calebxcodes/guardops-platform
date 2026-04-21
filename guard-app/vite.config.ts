@@ -10,7 +10,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
-      includeAssets: ['favicon.png', 'apple-touch-icon.png', 'icon.svg'],
+      includeAssets: ['favicon.svg', 'favicon.png', 'apple-touch-icon.png', 'icon.svg'],
       manifest: {
         name: 'Strondis Guard',
         short_name: 'Strondis Guard',
