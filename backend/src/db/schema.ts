@@ -373,6 +373,104 @@ export async function initSchema() {
     ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS totp_enabled      INTEGER DEFAULT 0;
     ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT;
   `)
+
+  // ── Multi-tenancy public schema tables ────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.tenants (
+      id                   BIGSERIAL PRIMARY KEY,
+      slug                 VARCHAR(50) UNIQUE NOT NULL,
+      name                 VARCHAR(255) NOT NULL,
+      email                VARCHAR(255) NOT NULL,
+      status               VARCHAR(50)  DEFAULT 'active',
+      tier                 VARCHAR(50)  DEFAULT 'starter',
+      max_guards           INT          DEFAULT 10,
+      stripe_customer_id   VARCHAR(255) UNIQUE,
+      subscription_id      VARCHAR(255),
+      current_period_start BIGINT,
+      current_period_end   BIGINT,
+      database_name        VARCHAR(100),
+      created_at           BIGINT       DEFAULT EXTRACT(EPOCH FROM NOW()),
+      updated_at           BIGINT       DEFAULT EXTRACT(EPOCH FROM NOW())
+    );
+    CREATE INDEX IF NOT EXISTS idx_tenants_slug   ON public.tenants (slug);
+    CREATE INDEX IF NOT EXISTS idx_tenants_status ON public.tenants (status);
+
+    CREATE TABLE IF NOT EXISTS public.subscriptions (
+      id                       BIGSERIAL PRIMARY KEY,
+      tenant_id                BIGINT NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+      stripe_subscription_id   VARCHAR(255) UNIQUE,
+      plan_code                VARCHAR(50),
+      price_monthly_cents      BIGINT,
+      status                   VARCHAR(50) DEFAULT 'trialing',
+      current_period_start     BIGINT,
+      current_period_end       BIGINT,
+      trial_ends_at            BIGINT,
+      cancel_at                BIGINT,
+      cancelled_at             BIGINT,
+      created_at               BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
+      updated_at               BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())
+    );
+    CREATE INDEX IF NOT EXISTS idx_subscriptions_tenant   ON public.subscriptions (tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_subscriptions_status   ON public.subscriptions (status);
+    CREATE INDEX IF NOT EXISTS idx_subscriptions_trial    ON public.subscriptions (trial_ends_at);
+
+    CREATE TABLE IF NOT EXISTS public.payments (
+      id                 BIGSERIAL PRIMARY KEY,
+      tenant_id          BIGINT NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+      stripe_invoice_id  VARCHAR(255) UNIQUE,
+      stripe_charge_id   VARCHAR(255),
+      amount_cents       BIGINT,
+      currency           VARCHAR(3) DEFAULT 'GBP',
+      status             VARCHAR(50),
+      description        TEXT,
+      attempted_at       BIGINT,
+      succeeded_at       BIGINT,
+      failed_at          BIGINT,
+      retry_count        INT DEFAULT 0,
+      next_retry_at      BIGINT,
+      created_at         BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
+      updated_at         BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())
+    );
+    CREATE INDEX IF NOT EXISTS idx_payments_tenant   ON public.payments (tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_payments_status   ON public.payments (status);
+    CREATE INDEX IF NOT EXISTS idx_payments_invoice  ON public.payments (stripe_invoice_id);
+
+    CREATE TABLE IF NOT EXISTS public.master_admins (
+      id             BIGSERIAL PRIMARY KEY,
+      email          VARCHAR(255) UNIQUE NOT NULL,
+      password_hash  VARCHAR(255),
+      two_fa_secret  VARCHAR(255),
+      two_fa_enabled BOOLEAN DEFAULT FALSE,
+      role           VARCHAR(50) DEFAULT 'viewer',
+      mfa_enabled    BOOLEAN DEFAULT TRUE,
+      created_at     BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
+      updated_at     BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
+      last_login     BIGINT
+    );
+    CREATE INDEX IF NOT EXISTS idx_master_admins_email ON public.master_admins (email);
+
+    CREATE TABLE IF NOT EXISTS public.audit_logs (
+      id          BIGSERIAL PRIMARY KEY,
+      actor_type  VARCHAR(50),
+      actor_id    BIGINT,
+      action      VARCHAR(100),
+      target_type VARCHAR(50),
+      target_id   BIGINT,
+      details     JSONB,
+      ip_address  VARCHAR(45),
+      user_agent  TEXT,
+      created_at  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_actor  ON public.audit_logs (actor_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON public.audit_logs (action);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_target ON public.audit_logs (target_type, target_id);
+
+    CREATE TABLE IF NOT EXISTS public.tenant_feature_flags (
+      tenant_id  BIGINT PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
+      flags      JSONB DEFAULT '{}',
+      updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())
+    );
+  `)
 }
 
 // ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────
