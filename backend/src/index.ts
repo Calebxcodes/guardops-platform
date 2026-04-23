@@ -87,6 +87,8 @@ app.use(cors({
     if (!IS_PROD && origin.includes('localhost')) return callback(null, true) // local dev only
     if (KNOWN_VERCEL_ORIGINS.includes(origin)) return callback(null, true)
     if (explicitOrigins.includes(origin)) return callback(null, true)
+    // Allow all strondis.com subdomains (tenant apps, master admin)
+    if (origin.match(/^https:\/\/[a-z0-9-]+\.strondis\.com$/)) return callback(null, true)
     callback(null, false)
   },
   credentials: true,

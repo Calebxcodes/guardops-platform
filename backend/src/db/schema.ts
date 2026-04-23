@@ -1,16 +1,23 @@
-import { Pool } from 'pg'
 import crypto from 'crypto'
+import { pool as sharedPool, tenantStorage } from './pool'
 
-// Railway internal network is secure; only use SSL for external managed DB URLs
-const useSSL = process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('.railway.internal')
-
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: useSSL ? { rejectUnauthorized: false } : false,
-})
+// schema.ts re-exports the shared pool so callers that import pool from here still work
+export const pool = sharedPool
 
 export async function query(text: string, params?: any[]) {
-  return pool.query(text, params)
+  const tenantId = tenantStorage.getStore()
+  if (!tenantId) return sharedPool.query(text, params)
+
+  const schemaName = `tenant_${tenantId}`
+  const client = await sharedPool.connect()
+  try {
+    await client.query(`SET search_path TO ${schemaName}, public`)
+    const result = await client.query(text, params)
+    await client.query(`SET search_path TO public`)
+    return result
+  } finally {
+    client.release()
+  }
 }
 
 export async function initSchema() {

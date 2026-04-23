@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { query, auditLog } from '../db/schema'
+import { pool, tenantStorage } from '../db/pool'
 import jwt from 'jsonwebtoken'
 import { sendPasswordReset } from '../services/email'
 // Self-contained TOTP (RFC 6238) — no external dependency, works on any Node version
@@ -47,14 +48,14 @@ const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set. Refusing to start.')
 
-function signAdminToken(id: number, email: string) {
-  return jwt.sign({ adminId: id, email, role: 'admin' }, JWT_SECRET, { expiresIn: '8h' })
+function signAdminToken(id: number, email: string, tenantId: number | null = null) {
+  return jwt.sign({ adminId: id, email, role: 'admin', tenantId }, JWT_SECRET, { expiresIn: '8h' })
 }
 
 // Short-lived token issued after password verification when 2FA is required.
 // Must be exchanged for a full token via POST /2fa/validate.
-function signPartialToken(id: number) {
-  return jwt.sign({ adminId: id, twofa_pending: true }, JWT_SECRET, { expiresIn: '5m' })
+function signPartialToken(id: number, tenantId: number | null = null) {
+  return jwt.sign({ adminId: id, twofa_pending: true, tenantId }, JWT_SECRET, { expiresIn: '5m' })
 }
 
 function generateBackupCodes(): { plain: string[]; hashed: string[] } {
@@ -74,7 +75,13 @@ export function requireAdmin(req: any, res: Response, next: any) {
     const payload = jwt.verify(auth.slice(7), JWT_SECRET) as any
     if (payload.role !== 'admin') return res.status(403).json({ error: 'Not admin' })
     req.adminId = payload.adminId
-    next()
+    req.tenantId = payload.tenantId ?? null
+    // Activate tenant schema context for all downstream queries in this request
+    if (payload.tenantId) {
+      tenantStorage.run(payload.tenantId, next)
+    } else {
+      next()
+    }
   } catch {
     res.status(401).json({ error: 'Invalid token' })
   }
@@ -118,24 +125,47 @@ export async function ensureDefaultAdmin() {
 router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' })
-  const { rows } = await query('SELECT * FROM admin_users WHERE email = $1', [email])
-  const admin = rows[0]
+
+  let admin: any = null
+  let tenantId: number | null = null
+
+  // Step 1: check public.admin_users (original single-tenant / direct-install admin)
+  const { rows: publicRows } = await pool.query('SELECT * FROM public.admin_users WHERE email = $1', [email])
+  if (publicRows[0]) {
+    admin = publicRows[0]
+  } else {
+    // Step 2: find which tenant owns this email (owner email stored at signup)
+    const { rows: tenantRows } = await pool.query(
+      "SELECT id FROM public.tenants WHERE email = $1 AND status NOT IN ('cancelled')",
+      [email]
+    )
+    if (tenantRows[0]) {
+      tenantId = tenantRows[0].id as number
+      const { rows: adminRows } = await pool.query(
+        `SELECT * FROM tenant_${tenantId}.admin_users WHERE email = $1`,
+        [email]
+      )
+      if (adminRows[0]) admin = adminRows[0]
+    }
+  }
+
   if (!admin) return res.status(401).json({ error: 'Invalid credentials' })
-  // OAuth-only admins have no password_hash set
   if (!admin.password_hash) return res.status(401).json({ error: 'This account uses SSO — please sign in with Google or Microsoft' })
+
   const valid = await bcrypt.compare(password, admin.password_hash)
   if (!valid) {
     auditLog({ user_type: 'admin', action: 'login_failed', extra: { email }, ip_address: req.ip })
     return res.status(401).json({ error: 'Invalid credentials' })
   }
-  // If 2FA is enabled, issue a short-lived partial token — full token comes after TOTP verify
+
   if (admin.totp_enabled) {
-    const partial_token = signPartialToken(admin.id)
+    const partial_token = signPartialToken(admin.id, tenantId)
     return res.json({ requires_2fa: true, partial_token })
   }
+
   auditLog({ user_type: 'admin', user_id: admin.id, action: 'login', ip_address: req.ip })
-  const token = signAdminToken(admin.id, admin.email)
-  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email } })
+  const token = signAdminToken(admin.id, admin.email, tenantId)
+  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email, tenantId } })
 })
 
 router.get('/me', requireAdmin, async (req: any, res: Response) => {
@@ -221,8 +251,8 @@ router.post('/2fa/validate', async (req: Request, res: Response) => {
   }
 
   auditLog({ user_type: 'admin', user_id: admin.id, action: 'login', ip_address: req.ip })
-  const token = signAdminToken(admin.id, admin.email)
-  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email } })
+  const token = signAdminToken(admin.id, admin.email, payload.tenantId ?? null)
+  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email, tenantId: payload.tenantId ?? null } })
 })
 
 // ── 2FA — management (requires full admin auth) ───────────────────────────────
