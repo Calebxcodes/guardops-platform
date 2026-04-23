@@ -9,7 +9,8 @@ const router = Router()
 
 const TIER_CONFIG: Record<string, { maxGuards: number; priceCents: number }> = {
   starter:          { maxGuards: 10,  priceCents: 34900  },
-  professional_50:  { maxGuards: 50,  priceCents: 69900  },
+  professional_30:  { maxGuards: 30,  priceCents: 49900  },
+  professional_60:  { maxGuards: 60,  priceCents: 89900  },
   professional_100: { maxGuards: 100, priceCents: 139900 },
   enterprise:       { maxGuards: 500, priceCents: 249900 },
 }
