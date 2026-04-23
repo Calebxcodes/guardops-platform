@@ -437,16 +437,13 @@ export async function initSchema() {
 
     CREATE TABLE IF NOT EXISTS public.master_admins (
       id             BIGSERIAL PRIMARY KEY,
+      name           VARCHAR(255) NOT NULL DEFAULT '',
       email          VARCHAR(255) UNIQUE NOT NULL,
       password_hash  VARCHAR(255),
-      two_fa_secret  VARCHAR(255),
-      two_fa_enabled BOOLEAN DEFAULT FALSE,
       role           VARCHAR(50) DEFAULT 'viewer',
-      mfa_enabled    BOOLEAN DEFAULT TRUE,
-      created_at     BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
-      updated_at     BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
-      last_login     BIGINT
+      created_at     BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())
     );
+    ALTER TABLE public.master_admins ADD COLUMN IF NOT EXISTS name VARCHAR(255) NOT NULL DEFAULT '';
     CREATE INDEX IF NOT EXISTS idx_master_admins_email ON public.master_admins (email);
 
     CREATE TABLE IF NOT EXISTS public.audit_logs (
