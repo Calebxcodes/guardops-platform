@@ -334,6 +334,13 @@ export default function Login() {
             </Link>
           </div>
 
+          <div className="text-center">
+            <span className="text-gray-600 text-sm">Don't have an account? </span>
+            <Link to="/signup" className="text-blue-400 hover:text-blue-300 text-sm transition-colors">
+              Create account
+            </Link>
+          </div>
+
           <InstallPromptButton />
         </form>
       </div>

@@ -9,6 +9,7 @@ import Layout from './components/Layout'
 // Lazy-load every page so each route is a separate chunk.
 // The login page is the most common cold-start; keep it in a tiny first bundle.
 const Login           = lazy(() => import('./pages/Login'))
+const Signup          = lazy(() => import('./pages/Signup'))
 const ForgotPassword  = lazy(() => import('./pages/ForgotPassword'))
 const ResetPassword   = lazy(() => import('./pages/ResetPassword'))
 const PortalView      = lazy(() => import('./pages/ClientPortal/PortalView'))
@@ -50,6 +51,7 @@ export default function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login"           element={<Login />} />
+          <Route path="/signup"          element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password"  element={<ResetPassword />} />
           <Route path="/portal/:token"   element={<PortalView />} />
