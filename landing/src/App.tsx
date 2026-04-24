@@ -9,8 +9,9 @@ import {
 } from 'lucide-react'
 import './index.css'
 
-const ADMIN_URL     = (import.meta as any).env?.VITE_ADMIN_URL  || 'https://your-admin-crm.vercel.app'
-const GUARD_URL     = (import.meta as any).env?.VITE_GUARD_URL  || 'https://your-guard-app.vercel.app'
+const ADMIN_URL     = (import.meta as any).env?.VITE_ADMIN_URL  || 'https://app.strondis.com'
+const GUARD_URL     = (import.meta as any).env?.VITE_GUARD_URL  || 'https://guard.strondis.com'
+const SIGNUP_URL    = `${ADMIN_URL}/signup`
 const CONTACT_EMAIL = 'info@strondis.com'
 const CONTACT_PHONE = '+44 20 0000 0000'
 
@@ -69,7 +70,8 @@ function Navbar() {
 
         <div className="hidden md:flex items-center gap-3">
           <a href={GUARD_URL} target="_blank" rel="noreferrer" className="text-white/60 hover:text-white text-sm font-medium transition-colors">Guard App</a>
-          <a href={ADMIN_URL} target="_blank" rel="noreferrer" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-lg shadow-blue-600/30">Sign In</a>
+          <a href={ADMIN_URL} target="_blank" rel="noreferrer" className="text-white/60 hover:text-white text-sm font-medium transition-colors border border-white/10 px-4 py-2 rounded-lg hover:bg-white/5 transition-colors">Sign In</a>
+          <a href={SIGNUP_URL} target="_blank" rel="noreferrer" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-lg shadow-blue-600/30">Start Free Trial</a>
         </div>
 
         <button onClick={() => setOpen(v => !v)} className="md:hidden text-white/60 hover:text-white p-1">
@@ -87,7 +89,8 @@ function Navbar() {
               ))}
               <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
                 <a href={GUARD_URL} target="_blank" rel="noreferrer" className="text-center border border-white/10 text-white/70 text-sm font-medium py-2.5 rounded-lg hover:bg-white/5 transition-colors">Guard App</a>
-                <a href={ADMIN_URL} target="_blank" rel="noreferrer" className="text-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">Sign In →</a>
+                <a href={ADMIN_URL} target="_blank" rel="noreferrer" className="text-center border border-white/10 text-white/70 text-sm font-medium py-2.5 rounded-lg hover:bg-white/5 transition-colors">Sign In</a>
+                <a href={SIGNUP_URL} target="_blank" rel="noreferrer" className="text-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">Start Free Trial →</a>
               </div>
             </div>
           </motion.div>
@@ -206,17 +209,17 @@ function Hero() {
 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}
           className="flex flex-col sm:flex-row gap-3 justify-center">
-          <a href="#contact" className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-7 py-4 rounded-xl shadow-xl shadow-blue-600/40 transition-all hover:scale-[1.02] active:scale-[0.98] text-base">
-            Book a Demo <ArrowRight size={18} />
+          <a href={SIGNUP_URL} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-7 py-4 rounded-xl shadow-xl shadow-blue-600/40 transition-all hover:scale-[1.02] active:scale-[0.98] text-base">
+            Start Free Trial <ArrowRight size={18} />
           </a>
-          <a href="#platform" className="inline-flex items-center justify-center gap-2 border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/8 text-white font-semibold px-7 py-4 rounded-xl transition-all text-base">
-            See the Platform <ChevronDown size={18} />
+          <a href="#contact" className="inline-flex items-center justify-center gap-2 border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/8 text-white font-semibold px-7 py-4 rounded-xl transition-all text-base">
+            Book a Demo <ChevronDown size={18} />
           </a>
         </motion.div>
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.5 }}
           className="mt-10 flex flex-wrap justify-center gap-6 text-white/30 text-sm">
-          {['No per-guard fees', 'Unlimited sites', 'GDPR compliant', 'UK-based support'].map(b => (
+          {['30-day free trial', 'No setup fees', 'GDPR compliant', 'UK-based support'].map(b => (
             <span key={b} className="flex items-center gap-1.5"><Check size={14} className="text-blue-400" />{b}</span>
           ))}
         </motion.div>
@@ -314,96 +317,131 @@ function Features() {
 function Plans() {
   const plans = [
     {
-      name: 'Starter', sub: 'Up to 25 guards',
+      id: 'starter',
+      name: 'Starter', price: '£349', sub: 'Up to 10 guards',
       badge: null, grad: 'from-slate-400 to-slate-600',
       btn: 'bg-white/10 hover:bg-white/15 text-white border border-white/10',
       features: [
-        { l: 'Up to 25 guards',             ok: true  },
+        { l: 'Up to 10 guards',              ok: true  },
         { l: 'Guard scheduling & rostering', ok: true  },
-        { l: 'GPS clock-in / geofencing',   ok: true  },
-        { l: 'Timesheets & basic payroll',  ok: true  },
-        { l: 'SIA compliance tracking',     ok: false },
-        { l: 'Client portal access',        ok: false },
-        { l: 'Dedicated account manager',   ok: false },
+        { l: 'GPS clock-in / geofencing',    ok: true  },
+        { l: 'Timesheets & basic payroll',   ok: true  },
+        { l: 'SIA compliance tracking',      ok: false },
+        { l: 'Client portal access',         ok: false },
+        { l: 'Dedicated account manager',    ok: false },
       ],
-      cta: 'Get Started',
     },
     {
-      name: 'Professional', sub: 'Up to 100 guards',
+      id: 'professional_30',
+      name: 'Pro 30', price: '£499', sub: 'Up to 30 guards',
+      badge: null, grad: 'from-cyan-500 to-cyan-700',
+      btn: 'bg-white/10 hover:bg-white/15 text-white border border-white/10',
+      features: [
+        { l: 'Up to 30 guards',              ok: true  },
+        { l: 'Guard scheduling & rostering', ok: true  },
+        { l: 'GPS clock-in / geofencing',    ok: true  },
+        { l: 'Full payroll & timesheets',    ok: true  },
+        { l: 'SIA compliance tracking',      ok: true  },
+        { l: 'Client portal access',         ok: false },
+        { l: 'Dedicated account manager',    ok: false },
+      ],
+    },
+    {
+      id: 'professional_60',
+      name: 'Pro 60', price: '£899', sub: 'Up to 60 guards',
+      badge: null, grad: 'from-blue-400 to-blue-600',
+      btn: 'bg-white/10 hover:bg-white/15 text-white border border-white/10',
+      features: [
+        { l: 'Up to 60 guards',              ok: true  },
+        { l: 'Guard scheduling & rostering', ok: true  },
+        { l: 'GPS clock-in / geofencing',    ok: true  },
+        { l: 'Full payroll & timesheets',    ok: true  },
+        { l: 'SIA compliance tracking',      ok: true  },
+        { l: 'Client portal access',         ok: true  },
+        { l: 'Dedicated account manager',    ok: false },
+      ],
+    },
+    {
+      id: 'professional_100',
+      name: 'Pro 100', price: '£1,399', sub: 'Up to 100 guards',
       badge: 'Most Popular', grad: 'from-blue-500 to-blue-700',
       btn: 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/40',
       features: [
-        { l: 'Up to 100 guards',            ok: true  },
+        { l: 'Up to 100 guards',             ok: true  },
         { l: 'Guard scheduling & rostering', ok: true  },
-        { l: 'GPS clock-in / geofencing',   ok: true  },
-        { l: 'Full payroll & timesheets',   ok: true  },
-        { l: 'SIA compliance tracking',     ok: true  },
-        { l: 'Client portal access',        ok: true  },
-        { l: 'Dedicated account manager',   ok: false },
+        { l: 'GPS + Face-ID verification',   ok: true  },
+        { l: 'Full payroll & timesheets',    ok: true  },
+        { l: 'SIA compliance tracking',      ok: true  },
+        { l: 'Client portal access',         ok: true  },
+        { l: 'Dedicated account manager',    ok: false },
       ],
-      cta: 'Get Started',
     },
     {
-      name: 'Enterprise', sub: 'Unlimited guards',
+      id: 'enterprise',
+      name: 'Enterprise', price: '£2,499', sub: 'Up to 500 guards',
       badge: null, grad: 'from-indigo-500 to-purple-700',
       btn: 'bg-white/10 hover:bg-white/15 text-white border border-white/10',
       features: [
-        { l: 'Unlimited guards & sites',    ok: true },
+        { l: 'Up to 500 guards & sites',     ok: true },
         { l: 'Guard scheduling & rostering', ok: true },
-        { l: 'GPS + Face-ID verification',  ok: true },
-        { l: 'Full payroll & timesheets',   ok: true },
-        { l: 'SIA compliance tracking',     ok: true },
-        { l: 'Client portal access',        ok: true },
-        { l: 'Dedicated account manager',   ok: true },
+        { l: 'GPS + Face-ID verification',   ok: true },
+        { l: 'Full payroll & timesheets',    ok: true },
+        { l: 'SIA compliance tracking',      ok: true },
+        { l: 'Client portal access',         ok: true },
+        { l: 'Dedicated account manager',    ok: true },
       ],
-      cta: 'Contact Us',
     },
   ]
 
   return (
     <section id="plans" className="py-24 px-5 relative">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
-      <div className="max-w-6xl mx-auto relative z-10">
+      <div className="max-w-7xl mx-auto relative z-10">
         <FadeIn className="text-center mb-16">
           <span className="text-blue-400 text-sm font-semibold uppercase tracking-widest">Pricing</span>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white mt-3 tracking-tight">Simple, transparent pricing</h2>
-          <p className="text-white/40 mt-4 text-lg max-w-xl mx-auto">Scale as your workforce grows. No per-guard fees, no hidden costs.</p>
+          <p className="text-white/40 mt-4 text-lg max-w-xl mx-auto">Scale as your workforce grows. Every plan includes a 30-day free trial.</p>
         </FadeIn>
 
-        <div className="grid md:grid-cols-3 gap-6 items-center">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 items-start">
           {plans.map((p, i) => (
-            <FadeIn key={p.name} delay={i * 0.12}>
-              <div className={`relative rounded-3xl p-[2px] bg-gradient-to-b ${p.grad} ${p.badge ? 'md:scale-105 z-10 shadow-2xl' : ''}`}>
-                <div className="rounded-[22px] bg-[#0c1220] px-7 py-8 h-full">
+            <FadeIn key={p.name} delay={i * 0.08}>
+              <div className={`relative rounded-3xl p-[2px] bg-gradient-to-b ${p.grad} ${p.badge ? 'shadow-2xl' : ''}`}>
+                <div className="rounded-[22px] bg-[#0c1220] px-5 py-6 h-full flex flex-col">
                   {p.badge && (
                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
                       <span className="bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg whitespace-nowrap">{p.badge}</span>
                     </div>
                   )}
-                  <div className="mb-6">
-                    <h3 className="text-xl font-bold text-white">{p.name}</h3>
-                    <p className="text-white/40 text-sm mt-1">{p.sub}</p>
+                  <div className="mb-4">
+                    <h3 className="text-lg font-bold text-white">{p.name}</h3>
+                    <p className="text-white/40 text-xs mt-0.5">{p.sub}</p>
+                    <div className="mt-3 flex items-baseline gap-1">
+                      <span className="text-2xl font-extrabold text-white">{p.price}</span>
+                      <span className="text-white/30 text-xs">/mo</span>
+                    </div>
                   </div>
-                  <ul className="space-y-3 mb-8">
+                  <ul className="space-y-2.5 mb-6 flex-1">
                     {p.features.map(f => (
-                      <li key={f.l} className="flex items-center gap-3 text-sm">
-                        <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${f.ok ? 'bg-blue-600/20 ring-1 ring-blue-500/30' : 'bg-white/5 ring-1 ring-white/10'}`}>
-                          {f.ok ? <Check size={11} className="text-blue-400" /> : <X size={11} className="text-white/25" />}
+                      <li key={f.l} className="flex items-center gap-2.5 text-xs">
+                        <span className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${f.ok ? 'bg-blue-600/20 ring-1 ring-blue-500/30' : 'bg-white/5 ring-1 ring-white/10'}`}>
+                          {f.ok ? <Check size={9} className="text-blue-400" /> : <X size={9} className="text-white/25" />}
                         </span>
-                        <span className={f.ok ? 'text-white/75' : 'text-white/25'}>{f.l}</span>
+                        <span className={f.ok ? 'text-white/70' : 'text-white/25'}>{f.l}</span>
                       </li>
                     ))}
                   </ul>
-                  <a href="#contact" className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold transition-all ${p.btn}`}>
-                    {p.cta} <ArrowRight size={15} />
+                  <a href={`${SIGNUP_URL}?tier=${p.id}`} target="_blank" rel="noreferrer"
+                    className={`w-full flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-all ${p.btn}`}>
+                    Start Free Trial <ArrowRight size={13} />
                   </a>
                 </div>
               </div>
             </FadeIn>
           ))}
         </div>
-        <FadeIn delay={0.4} className="text-center mt-8">
-          <p className="text-white/30 text-sm">All plans billed annually. <a href="#contact" className="text-blue-400 hover:underline">Talk to us about monthly options.</a></p>
+        <FadeIn delay={0.5} className="text-center mt-8">
+          <p className="text-white/30 text-sm">All prices per month. 30-day free trial on every plan. <a href="#contact" className="text-blue-400 hover:underline">Need a custom quote?</a></p>
         </FadeIn>
       </div>
     </section>
@@ -459,9 +497,9 @@ function Mission() {
 // ─── How It Works ─────────────────────────────────────────────────────────────
 function HowItWorks() {
   const steps = [
-    { Icon: Phone,      title: 'Book a Demo',       desc: "See Strondis in action. We'll walk you through the platform with your own data and workflows in mind." },
-    { Icon: Layers,     title: 'We onboard your team', desc: 'We import your guards, sites and schedules. Your team is up and running in days, not months.' },
-    { Icon: TrendingUp, title: 'Grow with confidence', desc: 'Full visibility across your operations from day one. Add sites, guards and clients as your business scales.' },
+    { Icon: Layers,     title: 'Sign up in minutes',    desc: 'Create your account, pick a plan and start your 30-day free trial instantly — no credit card required.' },
+    { Icon: Users,      title: 'Add your team & sites', desc: 'Import your guards, create sites and set up shifts. Your whole operation is live in under a day.' },
+    { Icon: TrendingUp, title: 'Grow with confidence',  desc: 'Full visibility across your operations from day one. Add sites, guards and clients as your business scales.' },
   ]
   return (
     <section className="py-24 px-5 border-y border-white/5 bg-white/[0.015]">
@@ -496,7 +534,7 @@ function Platform() {
       <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-900/20 rounded-full blur-[80px] pointer-events-none" />
       <div className="max-w-5xl mx-auto relative z-10">
         <FadeIn className="text-center mb-16">
-          <span className="text-blue-400 text-sm font-semibold uppercase tracking-widest">Two Apps, One Platform</span>
+          <span className="text-blue-400 text-sm font-semibold uppercase tracking-widest">Built for your whole team</span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-3 tracking-tight">Built for your whole operation</h2>
           <p className="text-white/40 mt-4 text-lg max-w-xl mx-auto">Your operations team and your guards each get a purpose-built interface — seamlessly connected in real time.</p>
         </FadeIn>
@@ -515,10 +553,16 @@ function Platform() {
                     <li key={f} className="flex items-center gap-2.5 text-sm text-white/55"><Check size={13} className="text-blue-400 flex-shrink-0" />{f}</li>
                   ))}
                 </ul>
-                <a href={ADMIN_URL} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-3 rounded-xl transition-all shadow-lg shadow-blue-600/30">
-                  Open Dashboard <ExternalLink size={15} />
-                </a>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <a href={SIGNUP_URL} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-3 rounded-xl transition-all shadow-lg shadow-blue-600/30">
+                    Start Free Trial <ArrowRight size={15} />
+                  </a>
+                  <a href={ADMIN_URL} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-2 border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white text-sm font-semibold px-5 py-3 rounded-xl transition-all">
+                    Sign In <ExternalLink size={15} />
+                  </a>
+                </div>
               </div>
             </div>
           </FadeIn>
@@ -707,6 +751,7 @@ function Footer() {
             <div>
               <h5 className="text-white font-semibold mb-3">Apps</h5>
               <ul className="space-y-2 text-white/35">
+                <li><a href={SIGNUP_URL} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Start Free Trial</a></li>
                 <li><a href={ADMIN_URL} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Operations Dashboard</a></li>
                 <li><a href={GUARD_URL} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Guard Mobile App</a></li>
               </ul>
