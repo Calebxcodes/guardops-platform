@@ -185,6 +185,10 @@ export const tenantApi = {
       '/tenant/permanent-delete',
       { data: { password, confirmDelete: true } }
     ).then(r => r.data),
+  export: (password: string): Promise<{ success: boolean; exportedAt: string; tenantId: number; data: Record<string, any[]> }> =>
+    api.post('/tenant/export', { password }).then(r => r.data),
+  archive: (password: string): Promise<{ success: boolean; message: string }> =>
+    api.post('/tenant/archive', { password }).then(r => r.data),
 }
 
 export const portalApi = {

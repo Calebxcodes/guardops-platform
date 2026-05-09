@@ -6,6 +6,126 @@ import { requireAdmin } from './adminAuth'
 
 const router = Router()
 
+// Helper: verify admin password, returns false on mismatch or missing hash
+async function verifyAdminPassword(
+  adminId: number,
+  tenantId: number,
+  password: string | undefined,
+): Promise<boolean> {
+  const { rows } = await query('SELECT password_hash FROM admin_users WHERE id = $1', [adminId], tenantId)
+  const hash = rows[0]?.password_hash
+  return hash ? bcrypt.compare(password ?? '', hash) : false
+}
+
+// POST /api/tenant/export — download all tenant data as JSON (password-gated)
+router.post('/export', requireAdmin, async (req: any, res: Response) => {
+  const { password } = req.body as { password?: string }
+  const tenantId: number = req.tenantId
+  const adminId: number  = req.adminId
+
+  if (!password) {
+    return res.status(400).json({ success: false, message: 'Password required' })
+  }
+
+  try {
+    if (!(await verifyAdminPassword(adminId, tenantId, password))) {
+      return res.status(401).json({ success: false, message: 'Incorrect password' })
+    }
+
+    const tables = [
+      'guards', 'shifts', 'clients', 'sites', 'incidents',
+      'timesheets', 'payroll_records', 'admin_users',
+    ]
+    const exportData: Record<string, any[]> = {}
+    for (const table of tables) {
+      try {
+        const { rows } = await query(`SELECT * FROM ${table}`, [], tenantId)
+        // Strip sensitive columns from admin_users export
+        if (table === 'admin_users') {
+          exportData[table] = rows.map(({ password_hash, ...rest }) => rest)
+        } else {
+          exportData[table] = rows
+        }
+      } catch {
+        exportData[table] = []
+      }
+    }
+
+    const now = Math.floor(Date.now() / 1000)
+    await query(
+      `INSERT INTO public.audit_logs (actor_type, actor_id, action, target_type, target_id, details)
+       VALUES ('admin', $1, 'tenant_data_exported', 'tenant', $2, $3)`,
+      [adminId, tenantId, JSON.stringify({ exportedAt: now })]
+    )
+
+    return res.json({
+      success: true,
+      message: 'Data export generated.',
+      exportedAt: new Date().toISOString(),
+      tenantId,
+      data: exportData,
+    })
+  } catch (err: any) {
+    console.error('[tenant export]', err)
+    Sentry.captureException(err)
+    return res.status(500).json({ success: false, message: err.message ?? 'Export failed' })
+  }
+})
+
+// POST /api/tenant/archive — soft-archive (recoverable within 30 days)
+router.post('/archive', requireAdmin, async (req: any, res: Response) => {
+  const { password } = req.body as { password?: string }
+  const tenantId: number = req.tenantId
+  const adminId: number  = req.adminId
+
+  if (!password) {
+    return res.status(400).json({ success: false, message: 'Password required' })
+  }
+
+  try {
+    const { rows: tenantRows } = await query(
+      `SELECT id, slug, status, archived_at, deleted_at FROM public.tenants WHERE id = $1`,
+      [tenantId]
+    )
+    if (!tenantRows[0]) {
+      return res.status(404).json({ success: false, message: 'Tenant not found' })
+    }
+    if (tenantRows[0].deleted_at) {
+      return res.status(400).json({ success: false, message: 'This account is already deleted' })
+    }
+    if (tenantRows[0].archived_at) {
+      return res.status(400).json({ success: false, message: 'This account is already archived' })
+    }
+
+    if (!(await verifyAdminPassword(adminId, tenantId, password))) {
+      return res.status(401).json({ success: false, message: 'Incorrect password' })
+    }
+
+    const now = Math.floor(Date.now() / 1000)
+    await query(
+      `UPDATE public.tenants SET status = 'archived', archived_at = $1, updated_at = $1 WHERE id = $2`,
+      [now, tenantId]
+    )
+
+    await query(
+      `UPDATE public.subscriptions SET status = 'paused', updated_at = $1 WHERE tenant_id = $2`,
+      [now, tenantId]
+    )
+
+    await query(
+      `INSERT INTO public.audit_logs (actor_type, actor_id, action, target_type, target_id, details)
+       VALUES ('admin', $1, 'tenant_archived', 'tenant', $2, $3)`,
+      [adminId, tenantId, JSON.stringify({ slug: tenantRows[0].slug, archivedAt: now })]
+    )
+
+    return res.json({ success: true, message: 'Account archived. Contact support within 30 days to restore.' })
+  } catch (err: any) {
+    console.error('[tenant archive]', err)
+    Sentry.captureException(err)
+    return res.status(500).json({ success: false, message: err.message ?? 'Archive failed' })
+  }
+})
+
 // Tenant admin permanently deletes their own company account.
 // - Soft-delete only: sets status='deleted' + deleted_at; schema retained 30 days.
 // - Requires admin password + explicit confirmDelete flag.

@@ -479,6 +479,8 @@ export async function initSchema() {
 
   await pool.query(`
     ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS deleted_at BIGINT;
+    ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS archived_at BIGINT;
+    ALTER TABLE public.master_admins ADD COLUMN IF NOT EXISTS archived_at BIGINT;
   `)
 
   // Add soft-delete column to the shared guards table

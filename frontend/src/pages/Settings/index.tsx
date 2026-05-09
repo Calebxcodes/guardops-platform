@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Shield, Clock, DollarSign, Lock, CheckCircle, AlertCircle, Loader, Copy, Eye, EyeOff, Trash2 } from 'lucide-react'
+import { Shield, Clock, DollarSign, Lock, CheckCircle, AlertCircle, Loader, Copy, Eye, EyeOff, Trash2, Download, Archive } from 'lucide-react'
 import { loadSettings, saveSettings, AppSettings } from '../../hooks/useSettings'
 import PrivacyDialog from '../../components/PrivacyDialog'
 import DeleteTenantModal from '../../components/DeleteTenantModal'
@@ -12,6 +12,19 @@ export default function Settings() {
   const [saved, setSaved] = useState(false)
   const [showPrivacy, setShowPrivacy] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+
+  // Export state
+  const [exportExpanded, setExportExpanded]   = useState(false)
+  const [exportPassword, setExportPassword]   = useState('')
+  const [exportLoading,  setExportLoading]    = useState(false)
+  const [exportError,    setExportError]      = useState('')
+
+  // Archive state
+  const [archiveExpanded, setArchiveExpanded] = useState(false)
+  const [archivePassword, setArchivePassword] = useState('')
+  const [archiveLoading,  setArchiveLoading]  = useState(false)
+  const [archiveError,    setArchiveError]    = useState('')
+  const [archiveDone,     setArchiveDone]     = useState(false)
 
   // 2FA state
   const [twoFaEnabled,   setTwoFaEnabled]   = useState<boolean | null>(null)
@@ -74,6 +87,40 @@ export default function Settings() {
       setBackupCodes(backup_codes); setTwoFaStep('backup')
     } catch (e: any) { setTwoFaError(e.response?.data?.error || 'Invalid code'); setTwoFaCode('') }
     finally { setTwoFaLoading(false) }
+  }
+
+  const handleExport = async () => {
+    setExportError('')
+    setExportLoading(true)
+    try {
+      const result = await tenantApi.export(exportPassword)
+      const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `export-${result.exportedAt.slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      setExportExpanded(false)
+      setExportPassword('')
+    } catch (e: any) {
+      setExportError(e.response?.data?.message || 'Export failed')
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
+  const handleArchive = async () => {
+    setArchiveError('')
+    setArchiveLoading(true)
+    try {
+      await tenantApi.archive(archivePassword)
+      setArchiveDone(true)
+    } catch (e: any) {
+      setArchiveError(e.response?.data?.message || 'Archive failed')
+    } finally {
+      setArchiveLoading(false)
+    }
   }
 
   const set = (key: keyof AppSettings, value: any) =>
@@ -347,6 +394,121 @@ export default function Settings() {
           </h2>
         </div>
 
+        {/* Export */}
+        <div className="space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Export Company Data</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Download all your guards, shifts, clients, and records as a JSON file.
+              </p>
+            </div>
+            <button
+              onClick={() => { setExportExpanded(v => !v); setExportError('') }}
+              className="shrink-0 flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Download size={14} />
+              Export Data
+            </button>
+          </div>
+          {exportExpanded && (
+            <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
+              <p className="text-xs text-gray-600">Enter your password to confirm the export:</p>
+              <input
+                type="password"
+                className="input text-sm w-full"
+                placeholder="Your password"
+                value={exportPassword}
+                onChange={e => setExportPassword(e.target.value)}
+                disabled={exportLoading}
+              />
+              {exportError && <p className="text-xs text-red-600">{exportError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setExportExpanded(false); setExportPassword(''); setExportError('') }}
+                  className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  disabled={exportLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExport}
+                  disabled={!exportPassword || exportLoading}
+                  className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {exportLoading ? <Loader size={13} className="animate-spin" /> : <Download size={13} />}
+                  Download JSON
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-red-100" />
+
+        {/* Archive */}
+        <div className="space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Archive Account</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Pause your account. Data is retained and recoverable within 30 days.
+              </p>
+            </div>
+            <button
+              onClick={() => { setArchiveExpanded(v => !v); setArchiveError(''); setArchiveDone(false) }}
+              className="shrink-0 flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+            >
+              <Archive size={14} />
+              Archive Account
+            </button>
+          </div>
+          {archiveExpanded && (
+            <div className="bg-white border border-amber-200 rounded-lg p-3 space-y-2">
+              {archiveDone ? (
+                <p className="text-sm text-green-700 font-medium flex items-center gap-1.5">
+                  <CheckCircle size={14} /> Account archived. Contact support to restore within 30 days.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs text-amber-700">
+                    Your account will be paused. Guards will lose access. Enter your password to confirm:
+                  </p>
+                  <input
+                    type="password"
+                    className="input text-sm w-full"
+                    placeholder="Your password"
+                    value={archivePassword}
+                    onChange={e => setArchivePassword(e.target.value)}
+                    disabled={archiveLoading}
+                  />
+                  {archiveError && <p className="text-xs text-red-600">{archiveError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setArchiveExpanded(false); setArchivePassword(''); setArchiveError('') }}
+                      className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                      disabled={archiveLoading}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleArchive}
+                      disabled={!archivePassword || archiveLoading}
+                      className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      {archiveLoading ? <Loader size={13} className="animate-spin" /> : <Archive size={13} />}
+                      Archive Account
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-red-100" />
+
+        {/* Delete */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-gray-900">Delete Company Account</p>
