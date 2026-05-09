@@ -11,7 +11,10 @@ router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' })
 
-  const { rows: guardRows } = await query('SELECT * FROM guards WHERE email = $1 AND active = 1', [email])
+  const { rows: guardRows } = await query(
+    'SELECT * FROM guards WHERE email = $1 AND active = 1 AND deleted_at IS NULL',
+    [email]
+  )
   const guard = guardRows[0]
   if (!guard) return res.status(401).json({ error: 'Invalid email or password' })
 

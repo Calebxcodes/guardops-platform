@@ -1,0 +1,107 @@
+import { Router, Request, Response } from 'express'
+import bcrypt from 'bcryptjs'
+import * as Sentry from '@sentry/node'
+import { query } from '../db/pool'
+import { requireAdmin } from './adminAuth'
+
+const router = Router()
+
+// Tenant admin permanently deletes their own company account.
+// - Soft-delete only: sets status='deleted' + deleted_at; schema retained 30 days.
+// - Requires admin password + explicit confirmDelete flag.
+// - Shift history, payroll, and incidents are preserved for compliance.
+router.delete('/permanent-delete', requireAdmin, async (req: any, res: Response) => {
+  const { password, confirmDelete } = req.body as {
+    password?: string
+    confirmDelete?: boolean
+  }
+  const tenantId: number = req.tenantId
+  const adminId: number  = req.adminId
+
+  if (!confirmDelete) {
+    return res.status(400).json({ success: false, message: 'Confirmation required' })
+  }
+
+  try {
+    // 1. Verify tenant exists and is not already deleted
+    const { rows: tenantRows } = await query(
+      `SELECT id, slug, name, status, deleted_at FROM public.tenants WHERE id = $1`,
+      [tenantId]
+    )
+    if (!tenantRows[0]) {
+      return res.status(404).json({ success: false, message: 'Tenant not found' })
+    }
+    if (tenantRows[0].deleted_at) {
+      return res.status(400).json({ success: false, message: 'This tenant is already deleted' })
+    }
+
+    // 2. Verify admin password
+    const { rows: adminRows } = await query(
+      'SELECT password_hash FROM admin_users WHERE id = $1',
+      [adminId],
+      tenantId
+    )
+    const hash = adminRows[0]?.password_hash
+    const valid = hash ? await bcrypt.compare(password ?? '', hash) : false
+    if (!valid) {
+      return res.status(401).json({ success: false, message: 'Incorrect password' })
+    }
+
+    // 3. Count records for audit trail
+    let guardCount = 0, shiftCount = 0, clientCount = 0, incidentCount = 0
+    try {
+      const [gc, sc, cc, ic] = await Promise.all([
+        query('SELECT COUNT(*)::int AS c FROM guards',    [], tenantId),
+        query('SELECT COUNT(*)::int AS c FROM shifts',    [], tenantId),
+        query('SELECT COUNT(*)::int AS c FROM clients',   [], tenantId),
+        query('SELECT COUNT(*)::int AS c FROM incidents', [], tenantId),
+      ])
+      guardCount    = gc.rows[0]?.c ?? 0
+      shiftCount    = sc.rows[0]?.c ?? 0
+      clientCount   = cc.rows[0]?.c ?? 0
+      incidentCount = ic.rows[0]?.c ?? 0
+    } catch {
+      // Schema may not be fully initialised — proceed anyway
+    }
+
+    const now = Math.floor(Date.now() / 1000)
+
+    // 4. Soft-delete tenant (schema retained for 30-day recovery window)
+    await query(
+      `UPDATE public.tenants SET status = 'deleted', deleted_at = $1, updated_at = $1 WHERE id = $2`,
+      [now, tenantId]
+    )
+
+    // 5. Cancel subscription
+    await query(
+      `UPDATE public.subscriptions
+       SET status = 'cancelled', cancelled_at = $1, updated_at = $1
+       WHERE tenant_id = $2`,
+      [now, tenantId]
+    )
+
+    // 6. Audit log
+    await query(
+      `INSERT INTO public.audit_logs
+         (actor_type, actor_id, action, target_type, target_id, details)
+       VALUES ('admin', $1, 'tenant_self_deleted', 'tenant', $2, $3)`,
+      [
+        adminId,
+        tenantId,
+        JSON.stringify({
+          slug: tenantRows[0].slug,
+          guardCount, shiftCount, clientCount, incidentCount,
+          deletedAt: now,
+        }),
+      ]
+    )
+
+    return res.json({ success: true, message: 'Account deleted.' })
+  } catch (err: any) {
+    console.error('[tenant permanent-delete]', err)
+    Sentry.captureException(err)
+    return res.status(500).json({ success: false, message: err.message ?? 'Database error' })
+  }
+})
+
+export default router

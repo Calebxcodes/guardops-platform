@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Shield, Clock, DollarSign, Lock, CheckCircle, AlertCircle, Loader, Copy, Eye, EyeOff } from 'lucide-react'
+import { Shield, Clock, DollarSign, Lock, CheckCircle, AlertCircle, Loader, Copy, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { loadSettings, saveSettings, AppSettings } from '../../hooks/useSettings'
 import PrivacyDialog from '../../components/PrivacyDialog'
-import { adminAuthApi } from '../../api'
+import DeleteTenantModal from '../../components/DeleteTenantModal'
+import { adminAuthApi, tenantApi } from '../../api'
 
 type TwoFaStep = 'idle' | 'setup' | 'confirm' | 'backup' | 'disabling' | 'regen'
 
@@ -10,6 +11,7 @@ export default function Settings() {
   const [settings, setSettings] = useState<AppSettings>(loadSettings)
   const [saved, setSaved] = useState(false)
   const [showPrivacy, setShowPrivacy] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   // 2FA state
   const [twoFaEnabled,   setTwoFaEnabled]   = useState<boolean | null>(null)
@@ -336,7 +338,42 @@ export default function Settings() {
         </button>
       </div>
 
+      {/* ── Data & Account Management ─────────────────────────────────────── */}
+      <div className="rounded-xl border border-red-200 bg-red-50/50 p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Trash2 size={15} className="text-red-500" />
+          <h2 className="text-sm font-semibold text-red-700 uppercase tracking-wide">
+            Data &amp; Account Management
+          </h2>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Delete Company Account</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Permanently deletes your company account and all associated data.
+              Shift history and payroll are retained for compliance.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="shrink-0 btn-danger flex items-center gap-2 text-sm"
+          >
+            <Trash2 size={14} />
+            Delete Company Account
+          </button>
+        </div>
+      </div>
+
       {showPrivacy && <PrivacyDialog onClose={() => setShowPrivacy(false)} />}
+
+      <DeleteTenantModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={async (password) => {
+          await tenantApi.permanentDelete(password)
+        }}
+      />
     </div>
   )
 }

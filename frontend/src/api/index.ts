@@ -35,7 +35,10 @@ export const guardsApi = {
   get:    (id: number)    => api.get(`/guards/${id}`).then(r => r.data),
   create: (data: any)     => api.post('/guards', data).then(r => r.data),
   update: (id: number, data: any) => api.put(`/guards/${id}`, data).then(r => r.data),
-  delete: (id: number)    => api.delete(`/guards/${id}`).then(r => r.data),
+  delete: (id: number, password: string) =>
+    api.delete(`/guards/${id}`, { data: { password } }).then(r => r.data),
+  listDeleted: () => api.get('/guards/deleted').then(r => r.data),
+  restore:     (id: number) => api.post(`/guards/${id}/restore`).then(r => r.data),
 }
 
 export const clientsApi = {
@@ -174,6 +177,14 @@ export const notificationsApi = {
     api.post('/admin/notifications/send', data).then(r => r.data),
   history: (): Promise<{ id: number; action: string; guard_id: number | null; guard_name: string | null; extra: { title?: string; urgency?: string }; sent_by: string; created_at: string }[]> =>
     api.get('/admin/notifications/history').then(r => r.data),
+}
+
+export const tenantApi = {
+  permanentDelete: (password: string) =>
+    api.delete<{ success: boolean; message: string }>(
+      '/tenant/permanent-delete',
+      { data: { password, confirmDelete: true } }
+    ).then(r => r.data),
 }
 
 export const portalApi = {

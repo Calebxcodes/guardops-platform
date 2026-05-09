@@ -29,6 +29,9 @@ export const login = (email: string, password: string) =>
 export const getMe = () =>
   http.get<{ id: number; name: string; email: string; role: string }>('/auth/me').then(r => r.data)
 
+export const deleteSelf = (password: string) =>
+  http.delete<{ success: boolean; message: string }>('/auth/me', { data: { password } }).then(r => r.data)
+
 // ── Tenants ───────────────────────────────────────────────────────────────────
 export interface Tenant {
   id: number

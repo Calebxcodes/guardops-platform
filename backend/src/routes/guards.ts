@@ -1,66 +1,263 @@
 import { Router, Request, Response } from 'express'
-import { query } from '../db/schema'
+import bcrypt from 'bcryptjs'
+import * as Sentry from '@sentry/node'
+import { query } from '../db/pool'
 
 const router = Router()
 
+const tid = (req: Request): number => (req as any).tenantId as number
+const adminId = (req: Request): number => (req as any).adminId as number
+
+// ── Active guards ─────────────────────────────────────────────────────────────
+
 router.get('/', async (req: Request, res: Response) => {
-  const { rows } = await query(`
-    SELECT g.*,
-      (SELECT COUNT(*) FROM shifts WHERE guard_id = g.id AND status = 'active')::int as active_shifts
-    FROM guards g
-    WHERE g.active = 1
-    ORDER BY g.last_name, g.first_name
-  `)
-  res.json(rows.map((g: any) => ({
-    ...g,
-    certifications: JSON.parse(g.certifications || '[]'),
-    skills: JSON.parse(g.skills || '[]'),
-  })))
+  try {
+    const { rows } = await query(
+      `SELECT g.*,
+         (SELECT COUNT(*) FROM shifts WHERE guard_id = g.id AND status = 'active')::int AS active_shifts
+       FROM guards g
+       WHERE g.active = 1 AND g.deleted_at IS NULL
+       ORDER BY g.last_name, g.first_name`,
+      [],
+      tid(req)
+    )
+    res.json(rows.map((g: any) => ({
+      ...g,
+      certifications: JSON.parse(g.certifications || '[]'),
+      skills: JSON.parse(g.skills || '[]'),
+    })))
+  } catch (err: any) {
+    console.error('[guards GET /]', err)
+    Sentry.captureException(err)
+    res.status(500).json({ success: false, message: err.message })
+  }
 })
+
+// ── Deleted guards list (must be before /:id) ─────────────────────────────────
+
+router.get('/deleted', async (req: Request, res: Response) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, first_name, last_name, email, phone, status, employment_type, deleted_at
+       FROM guards
+       WHERE deleted_at IS NOT NULL
+       ORDER BY deleted_at DESC`,
+      [],
+      tid(req)
+    )
+    res.json({ success: true, guards: rows })
+  } catch (err: any) {
+    console.error('[guards GET /deleted]', err)
+    Sentry.captureException(err)
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// ── Single guard ──────────────────────────────────────────────────────────────
 
 router.get('/:id', async (req: Request, res: Response) => {
-  const { rows } = await query('SELECT * FROM guards WHERE id = $1', [req.params.id])
-  const guard = rows[0]
-  if (!guard) return res.status(404).json({ error: 'Guard not found' })
-  res.json({
-    ...guard,
-    certifications: JSON.parse(guard.certifications || '[]'),
-    skills: JSON.parse(guard.skills || '[]'),
-  })
+  try {
+    const { rows } = await query(
+      'SELECT * FROM guards WHERE id = $1 AND deleted_at IS NULL',
+      [req.params.id],
+      tid(req)
+    )
+    const guard = rows[0]
+    if (!guard) return res.status(404).json({ error: 'Guard not found' })
+    res.json({
+      ...guard,
+      certifications: JSON.parse(guard.certifications || '[]'),
+      skills: JSON.parse(guard.skills || '[]'),
+    })
+  } catch (err: any) {
+    console.error('[guards GET /:id]', err)
+    Sentry.captureException(err)
+    res.status(500).json({ success: false, message: err.message })
+  }
 })
 
+// ── Create guard ──────────────────────────────────────────────────────────────
+
 router.post('/', async (req: Request, res: Response) => {
-  const { first_name, last_name, email, phone, address, date_of_birth, employment_type, hourly_rate, certifications, skills, bank_account, bank_routing, notes } = req.body
+  const {
+    first_name, last_name, email, phone, address, date_of_birth,
+    employment_type, hourly_rate, certifications, skills,
+    bank_account, bank_routing, notes,
+  } = req.body
+
   if (!first_name?.trim()) return res.status(400).json({ error: 'First name is required' })
   if (!last_name?.trim())  return res.status(400).json({ error: 'Last name is required' })
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     return res.status(400).json({ error: 'Invalid email address' })
-  const { rows } = await query(`
-    INSERT INTO guards (first_name, last_name, email, phone, address, date_of_birth, employment_type, hourly_rate, certifications, skills, bank_account, bank_routing, notes)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *
-  `, [first_name, last_name, email, phone, address, date_of_birth, employment_type || 'full-time', hourly_rate || 15,
-      JSON.stringify(certifications || []), JSON.stringify(skills || []), bank_account, bank_routing, notes])
-  const guard = rows[0]
-  res.status(201).json({ ...guard, certifications: JSON.parse(guard.certifications), skills: JSON.parse(guard.skills) })
+
+  try {
+    const { rows } = await query(
+      `INSERT INTO guards
+         (first_name, last_name, email, phone, address, date_of_birth,
+          employment_type, hourly_rate, certifications, skills, bank_account, bank_routing, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [
+        first_name, last_name, email, phone, address, date_of_birth,
+        employment_type || 'full-time', hourly_rate || 15,
+        JSON.stringify(certifications || []), JSON.stringify(skills || []),
+        bank_account, bank_routing, notes,
+      ],
+      tid(req)
+    )
+    const guard = rows[0]
+    res.status(201).json({
+      ...guard,
+      certifications: JSON.parse(guard.certifications),
+      skills: JSON.parse(guard.skills),
+    })
+  } catch (err: any) {
+    console.error('[guards POST /]', err)
+    Sentry.captureException(err)
+    res.status(500).json({ success: false, message: err.message })
+  }
 })
+
+// ── Update guard ──────────────────────────────────────────────────────────────
 
 router.put('/:id', async (req: Request, res: Response) => {
-  const { first_name, last_name, email, phone, address, date_of_birth, employment_type, status, hourly_rate, certifications, skills, bank_account, bank_routing, notes } = req.body
-  await query(`
-    UPDATE guards SET first_name=$1, last_name=$2, email=$3, phone=$4, address=$5, date_of_birth=$6,
-    employment_type=$7, status=$8, hourly_rate=$9, certifications=$10, skills=$11, bank_account=$12, bank_routing=$13, notes=$14
-    WHERE id=$15
-  `, [first_name, last_name, email, phone, address, date_of_birth, employment_type, status,
-      hourly_rate, JSON.stringify(certifications || []), JSON.stringify(skills || []),
-      bank_account, bank_routing, notes, req.params.id])
-  const { rows } = await query('SELECT * FROM guards WHERE id = $1', [req.params.id])
-  const guard = rows[0]
-  res.json({ ...guard, certifications: JSON.parse(guard.certifications), skills: JSON.parse(guard.skills) })
+  const {
+    first_name, last_name, email, phone, address, date_of_birth,
+    employment_type, status, hourly_rate, certifications, skills,
+    bank_account, bank_routing, notes,
+  } = req.body
+
+  try {
+    await query(
+      `UPDATE guards
+       SET first_name=$1, last_name=$2, email=$3, phone=$4, address=$5, date_of_birth=$6,
+           employment_type=$7, status=$8, hourly_rate=$9, certifications=$10,
+           skills=$11, bank_account=$12, bank_routing=$13, notes=$14
+       WHERE id=$15 AND deleted_at IS NULL`,
+      [
+        first_name, last_name, email, phone, address, date_of_birth,
+        employment_type, status, hourly_rate,
+        JSON.stringify(certifications || []), JSON.stringify(skills || []),
+        bank_account, bank_routing, notes, req.params.id,
+      ],
+      tid(req)
+    )
+    const { rows } = await query(
+      'SELECT * FROM guards WHERE id = $1',
+      [req.params.id],
+      tid(req)
+    )
+    const guard = rows[0]
+    res.json({
+      ...guard,
+      certifications: JSON.parse(guard.certifications),
+      skills: JSON.parse(guard.skills),
+    })
+  } catch (err: any) {
+    console.error('[guards PUT /:id]', err)
+    Sentry.captureException(err)
+    res.status(500).json({ success: false, message: err.message })
+  }
 })
 
+// ── Soft-delete guard ─────────────────────────────────────────────────────────
+// Sets deleted_at; leaves all shift/payroll/incident records intact.
+// Requires admin password confirmation — this action is tracked in the audit log.
+
 router.delete('/:id', async (req: Request, res: Response) => {
-  await query('UPDATE guards SET active = 0 WHERE id = $1', [req.params.id])
-  res.json({ success: true })
+  const { password } = req.body as { password?: string }
+  const guardId = Number(req.params.id)
+
+  try {
+    // 1. Verify guard exists
+    const { rows: guardRows } = await query(
+      'SELECT id, first_name, last_name, deleted_at FROM guards WHERE id = $1',
+      [guardId],
+      tid(req)
+    )
+    if (!guardRows[0]) {
+      return res.status(404).json({ success: false, message: 'Guard not found' })
+    }
+    if (guardRows[0].deleted_at) {
+      return res.status(400).json({ success: false, message: 'This guard is already deleted' })
+    }
+
+    // 2. Verify admin password
+    const { rows: adminRows } = await query(
+      'SELECT password_hash FROM admin_users WHERE id = $1',
+      [adminId(req)],
+      tid(req)
+    )
+    const hash = adminRows[0]?.password_hash
+    const valid = hash ? await bcrypt.compare(password ?? '', hash) : false
+    if (!valid) {
+      return res.status(401).json({ success: false, message: 'Incorrect password' })
+    }
+
+    // 3. Soft delete — shift history, payroll, and incidents are retained
+    await query(
+      'UPDATE guards SET deleted_at = NOW() WHERE id = $1',
+      [guardId],
+      tid(req)
+    )
+
+    // 4. Audit log
+    await query(
+      `INSERT INTO audit_log
+         (user_type, user_id, action, resource_type, resource_id, ip_address)
+       VALUES ('admin', $1, 'GUARD_PROFILE_DELETED', 'guard', $2, $3)`,
+      [adminId(req), guardId, req.ip ?? null],
+      tid(req)
+    )
+
+    return res.json({
+      success: true,
+      message: 'Guard profile deleted. Shift history retained for compliance.',
+    })
+  } catch (err: any) {
+    console.error('[guards DELETE /:id]', err)
+    Sentry.captureException(err)
+    return res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// ── Restore deleted guard ─────────────────────────────────────────────────────
+
+router.post('/:id/restore', async (req: Request, res: Response) => {
+  const guardId = Number(req.params.id)
+
+  try {
+    const { rows } = await query(
+      'SELECT id, deleted_at FROM guards WHERE id = $1',
+      [guardId],
+      tid(req)
+    )
+    if (!rows[0]) {
+      return res.status(404).json({ success: false, message: 'Guard not found' })
+    }
+    if (!rows[0].deleted_at) {
+      return res.status(400).json({ success: false, message: 'Guard is not deleted' })
+    }
+
+    await query(
+      'UPDATE guards SET deleted_at = NULL WHERE id = $1',
+      [guardId],
+      tid(req)
+    )
+
+    await query(
+      `INSERT INTO audit_log
+         (user_type, user_id, action, resource_type, resource_id, ip_address)
+       VALUES ('admin', $1, 'GUARD_PROFILE_RESTORED', 'guard', $2, $3)`,
+      [adminId(req), guardId, req.ip ?? null],
+      tid(req)
+    )
+
+    return res.json({ success: true, message: 'Guard profile restored.' })
+  } catch (err: any) {
+    console.error('[guards POST /:id/restore]', err)
+    Sentry.captureException(err)
+    return res.status(500).json({ success: false, message: err.message })
+  }
 })
 
 export default router

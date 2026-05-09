@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { LayoutDashboard, Building2, CreditCard, Flag, Users, LogOut, Shield, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Building2, CreditCard, Flag, Users, Settings, LogOut, Shield, Menu, X } from 'lucide-react'
 import clsx from 'clsx'
 
 const nav = [
@@ -10,6 +10,7 @@ const nav = [
   { to: '/payments', label: 'Payments',  icon: CreditCard },
   { to: '/flags',    label: 'Flags',     icon: Flag },
   { to: '/users',    label: 'Admins',    icon: Users },
+  { to: '/settings', label: 'Settings',  icon: Settings },
 ]
 
 function NavItem({ to, label, icon: Icon, onClick }: { to: string; label: string; icon: React.ElementType; onClick?: () => void }) {

@@ -47,6 +47,7 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
         avatar_url       TEXT,
         face_descriptor  TEXT,
         active           INTEGER DEFAULT 1,
+        deleted_at       TIMESTAMPTZ,
         created_at       TIMESTAMPTZ DEFAULT NOW()
       );
 

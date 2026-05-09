@@ -452,6 +452,7 @@ export async function initSchema() {
     );
     ALTER TABLE public.master_admins ADD COLUMN IF NOT EXISTS name VARCHAR(255) NOT NULL DEFAULT '';
     CREATE INDEX IF NOT EXISTS idx_master_admins_email ON public.master_admins (email);
+    ALTER TABLE public.master_admins ADD COLUMN IF NOT EXISTS deleted_at BIGINT;
 
     CREATE TABLE IF NOT EXISTS public.audit_logs (
       id          BIGSERIAL PRIMARY KEY,
@@ -479,6 +480,25 @@ export async function initSchema() {
   await pool.query(`
     ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS deleted_at BIGINT;
   `)
+
+  // Add soft-delete column to the shared guards table
+  await pool.query(`
+    ALTER TABLE guards ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+  `)
+
+  // Apply the same migration to every existing tenant schema
+  try {
+    const { rows: tenants } = await pool.query(
+      `SELECT id FROM public.tenants WHERE status != 'deleted'`
+    )
+    for (const t of tenants) {
+      await pool.query(
+        `ALTER TABLE IF EXISTS tenant_${t.id}.guards ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`
+      )
+    }
+  } catch {
+    // public.tenants may not exist yet on a fresh database — safe to skip
+  }
 }
 
 // ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────

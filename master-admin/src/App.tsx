@@ -7,6 +7,7 @@ import Tenants from './pages/Tenants'
 import Payments from './pages/Payments'
 import Flags from './pages/Flags'
 import Users from './pages/Users'
+import Settings from './pages/Settings'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = useAuthStore(s => s.token)
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="payments" element={<Payments />} />
           <Route path="flags" element={<Flags />} />
           <Route path="users" element={<Users />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
