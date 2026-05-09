@@ -475,6 +475,10 @@ export async function initSchema() {
       updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())
     );
   `)
+
+  await pool.query(`
+    ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS deleted_at BIGINT;
+  `)
 }
 
 // ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────
