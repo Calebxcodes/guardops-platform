@@ -48,7 +48,7 @@ export default function DeleteGuardModal({ isOpen, onClose, guardName, onConfirm
 
   if (!isOpen) return null
 
-  const canSubmit = password.length > 0 && checked && state === 'idle'
+  const canSubmit = password.length > 0 && checked && state !== 'loading' && state !== 'success'
 
   const handleSubmit = async () => {
     if (!canSubmit) return
@@ -154,7 +154,7 @@ export default function DeleteGuardModal({ isOpen, onClose, guardName, onConfirm
                   <input
                     type={showPass ? 'text' : 'password'}
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={e => { setPassword(e.target.value); if (state === 'error') setState('idle') }}
                     placeholder="Enter your password"
                     disabled={state === 'loading'}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2.5 pr-10 text-sm

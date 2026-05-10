@@ -108,7 +108,7 @@ router.post('/archive', requireAdmin, async (req: any, res: Response) => {
     )
 
     await query(
-      `UPDATE public.subscriptions SET status = 'paused', updated_at = $1 WHERE tenant_id = $2`,
+      `UPDATE public.subscriptions SET status = 'cancelled', cancelled_at = $1, updated_at = $1 WHERE tenant_id = $2`,
       [now, tenantId]
     )
 
@@ -138,6 +138,9 @@ router.delete('/permanent-delete', requireAdmin, async (req: any, res: Response)
   const tenantId: number = req.tenantId
   const adminId: number  = req.adminId
 
+  if (!password) {
+    return res.status(400).json({ success: false, message: 'Password required' })
+  }
   if (!confirmDelete) {
     return res.status(400).json({ success: false, message: 'Confirmation required' })
   }

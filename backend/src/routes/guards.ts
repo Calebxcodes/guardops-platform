@@ -142,11 +142,12 @@ router.put('/:id', async (req: Request, res: Response) => {
       tid(req)
     )
     const { rows } = await query(
-      'SELECT * FROM guards WHERE id = $1',
+      'SELECT * FROM guards WHERE id = $1 AND deleted_at IS NULL',
       [req.params.id],
       tid(req)
     )
     const guard = rows[0]
+    if (!guard) return res.status(404).json({ error: 'Guard not found' })
     res.json({
       ...guard,
       certifications: JSON.parse(guard.certifications),
