@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 const FROM_EMAIL     = process.env.FROM_EMAIL     || 'noreply@strondis.com'
-const APP_URL        = process.env.APP_URL        || 'https://strondis.com'
+const FRONTEND_URL   = process.env.FRONTEND_URL   || 'https://app.strondis.com'
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null
 
@@ -16,7 +16,7 @@ async function send(to: string, subject: string, html: string) {
 }
 
 export async function sendPasswordReset(to: string, token: string, userType: 'admin' | 'guard') {
-  const base = userType === 'admin' ? APP_URL : (process.env.GUARD_APP_URL || APP_URL)
+  const base = userType === 'admin' ? FRONTEND_URL : (process.env.GUARD_APP_URL || FRONTEND_URL)
   const link = `${base}/reset-password?token=${token}`
   await send(to, 'Reset your Strondis password', `
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
@@ -73,7 +73,7 @@ export async function sendInvitation(
   tenantName: string,
   tenantId: number
 ) {
-  const appUrl = process.env.APP_URL || 'https://app.strondis.com'
+  const appUrl = FRONTEND_URL
   const link = `${appUrl}/accept-invite?token=${token}&tenantId=${tenantId}`
   const roleDisplay = role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   await send(to, `You've been invited to join ${tenantName} on Strondis`, `
@@ -106,7 +106,7 @@ export async function sendInvitation(
 export async function sendRoleChangeNotification(to: string, oldRole: string, newRole: string) {
   const oldDisplay = oldRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   const newDisplay = newRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-  const appUrl = process.env.APP_URL || 'https://app.strondis.com'
+  const appUrl = FRONTEND_URL
   await send(to, 'Your Strondis role has been updated', `
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
       <div style="margin-bottom:20px">
