@@ -63,7 +63,7 @@ router.post('/:userId/resend-invite', requireAdmin, requirePermission('users', '
 })
 
 // PUT /api/admin/users/:userId/role — change a user's role (owner only, cannot self-demote)
-router.put('/:userId/role', requireAdmin, preventSelfDemotion, requirePermission('users', 'changeRole'), async (req: any, res: Response) => {
+router.put('/:userId/role', requireAdmin, requirePermission('users', 'changeRole'), preventSelfDemotion, async (req: any, res: Response) => {
   const { role } = req.body
   const validRoles = ['owner', 'manager', 'scheduler', 'payroll_manager', 'viewer']
   if (!role || !validRoles.includes(role))
@@ -101,7 +101,7 @@ router.put('/:userId/role', requireAdmin, preventSelfDemotion, requirePermission
 })
 
 // DELETE /api/admin/users/:userId — remove a team member (owner only)
-router.delete('/:userId', requireAdmin, preventSelfDemotion, requirePermission('users', 'delete'), async (req: any, res: Response) => {
+router.delete('/:userId', requireAdmin, requirePermission('users', 'delete'), preventSelfDemotion, async (req: any, res: Response) => {
   try {
     const { rows } = await query(
       'SELECT id FROM admin_users WHERE id = $1',

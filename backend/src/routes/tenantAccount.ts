@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import * as Sentry from '@sentry/node'
 import { query } from '../db/pool'
 import { requireAdmin } from './adminAuth'
+import { requirePermission } from '../middleware/rbac'
 
 const router = Router()
 
@@ -17,8 +18,8 @@ async function verifyAdminPassword(
   return hash ? bcrypt.compare(password ?? '', hash) : false
 }
 
-// POST /api/tenant/export — download all tenant data as JSON (password-gated)
-router.post('/export', requireAdmin, async (req: any, res: Response) => {
+// POST /api/tenant/export — download all tenant data as JSON (password-gated, owner/manager only)
+router.post('/export', requireAdmin, requirePermission('settings', 'update'), async (req: any, res: Response) => {
   const { password } = req.body as { password?: string }
   const tenantId: number = req.tenantId
   const adminId: number  = req.adminId
@@ -72,8 +73,8 @@ router.post('/export', requireAdmin, async (req: any, res: Response) => {
   }
 })
 
-// POST /api/tenant/archive — soft-archive (recoverable within 30 days)
-router.post('/archive', requireAdmin, async (req: any, res: Response) => {
+// POST /api/tenant/archive — soft-archive (owner/manager only, password-gated)
+router.post('/archive', requireAdmin, requirePermission('settings', 'update'), async (req: any, res: Response) => {
   const { password } = req.body as { password?: string }
   const tenantId: number = req.tenantId
   const adminId: number  = req.adminId
@@ -130,7 +131,7 @@ router.post('/archive', requireAdmin, async (req: any, res: Response) => {
 // - Soft-delete only: sets status='deleted' + deleted_at; schema retained 30 days.
 // - Requires admin password + explicit confirmDelete flag.
 // - Shift history, payroll, and incidents are preserved for compliance.
-router.delete('/permanent-delete', requireAdmin, async (req: any, res: Response) => {
+router.delete('/permanent-delete', requireAdmin, requirePermission('settings', 'update'), async (req: any, res: Response) => {
   const { password, confirmDelete } = req.body as {
     password?: string
     confirmDelete?: boolean

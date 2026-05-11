@@ -5,7 +5,7 @@ import { requirePermission } from '../middleware/rbac'
 
 const router = Router()
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', requirePermission('payroll', 'read'), async (req: Request, res: Response) => {
   const page  = Math.max(1, parseInt(req.query.page  as string) || 1)
   const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50))
   const offset = (page - 1) * limit
