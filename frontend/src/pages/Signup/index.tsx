@@ -128,12 +128,15 @@ export default function Signup() {
             </div>
           </div>
 
-          <button
-            onClick={() => navigate('/login')}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl py-3.5 transition-colors"
+          <a
+            href={`https://${success.slug}.strondis.com/login`}
+            className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl py-3.5 text-center transition-colors"
           >
-            Go to Login
-          </button>
+            Go to Login →
+          </a>
+          <p className="text-xs text-gray-600 text-center mt-2">
+            Your company portal: <span className="text-gray-400 font-mono">{success.slug}.strondis.com</span>
+          </p>
         </div>
       </div>
     )

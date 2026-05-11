@@ -15,6 +15,11 @@ const TIER_CONFIG: Record<string, { maxGuards: number; priceCents: number }> = {
   enterprise:       { maxGuards: 500, priceCents: 249900 },
 }
 
+const RESERVED_SLUGS = new Set([
+  'app', 'admin', 'guard', 'api', 'www', 'landing', 'mail', 'status', 'docs',
+  'support', 'help', 'blog', 'login', 'signup', 'auth', 'strondis',
+])
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -45,6 +50,9 @@ router.post('/signup', async (req: Request, res: Response) => {
   const slug = slugify(companyName)
   if (!slug) {
     return res.status(400).json({ error: 'Company name must contain at least one alphanumeric character' })
+  }
+  if (RESERVED_SLUGS.has(slug)) {
+    return res.status(400).json({ error: 'That company name is reserved. Please use a different name.' })
   }
 
   try {
