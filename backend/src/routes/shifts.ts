@@ -56,12 +56,10 @@ router.post('/', requirePermission('shifts', 'create'), async (req: Request, res
     if (rows[0]) return res.status(409).json({ error: 'Guard is already scheduled for an overlapping shift' })
   }
 
-  // Get site hourly rate if not provided
-  let rate = hourly_rate
-  if (!rate) {
-    const { rows: siteRows } = await query('SELECT hourly_rate FROM sites WHERE id = $1', [site_id])
-    rate = siteRows[0]?.hourly_rate || 0
-  }
+  // Validate site exists and get its default rate
+  const { rows: siteRows } = await query('SELECT id, hourly_rate FROM sites WHERE id = $1', [site_id])
+  if (!siteRows[0]) return res.status(404).json({ error: 'Site not found' })
+  const rate = hourly_rate || siteRows[0].hourly_rate || 0
 
   const status = guard_id ? 'assigned' : 'unassigned'
   const { rows } = await query(`
@@ -109,6 +107,11 @@ router.put('/:id', requirePermission('shifts', 'update'), async (req: Request, r
       AND NOT (end_time <= $3 OR start_time >= $4)
     `, [guard_id, req.params.id, start_time, end_time])
     if (rows[0]) return res.status(409).json({ error: 'Guard is already scheduled for an overlapping shift' })
+  }
+
+  if (site_id) {
+    const { rows: siteCheck } = await query('SELECT id FROM sites WHERE id = $1', [site_id])
+    if (!siteCheck[0]) return res.status(404).json({ error: 'Site not found' })
   }
 
   const newStatus = status || (guard_id ? 'assigned' : 'unassigned')
