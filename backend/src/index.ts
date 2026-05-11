@@ -7,7 +7,7 @@ import compression from 'compression'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import cron from 'node-cron'
-import { initSchema, query, PgRateLimitStore } from './db/schema'
+import { initSchema, query, PgRateLimitStore, pool } from './db/schema'
 import { seed } from './db/seed'
 import guardsRouter from './routes/guards'
 import clientsRouter from './routes/clients'
@@ -174,6 +174,23 @@ app.use('/api/auth/change-password',              sensitiveLimiter)
 app.use('/api/guard/shifts/clock-in',             clockLimiter)
 app.use('/api/guard/shifts/clock-out',            clockLimiter)
 app.use('/api/guard/profile/face-descriptor',     sensitiveLimiter)
+
+// ── Public tenant resolution (subdomain routing — no auth) ─────────────────
+// Called by frontend on every page load to resolve {slug}.strondis.com → tenant
+app.get('/api/tenant/by-slug/:slug', async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, slug FROM public.tenants
+       WHERE slug = $1 AND status NOT IN ('deleted', 'archived')`,
+      [req.params.slug]
+    )
+    if (!rows[0]) return res.status(404).json({ error: 'Company not found' })
+    res.json({ id: Number(rows[0].id), name: rows[0].name, slug: rows[0].slug })
+  } catch (err: any) {
+    console.error('[tenant-by-slug]', err.message)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
 
 // ── Routes ────────────────────────────────────────────────────────────────
 app.use('/api/admin/auth', adminAuthRouter)

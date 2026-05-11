@@ -71,10 +71,15 @@ export async function sendInvitation(
   token: string,
   role: string,
   tenantName: string,
-  tenantId: number
+  tenantId: number,
+  tenantSlug?: string
 ) {
-  const appUrl = FRONTEND_URL
-  const link = `${appUrl}/accept-invite?token=${token}&tenantId=${tenantId}`
+  // New links use {slug}.strondis.com — tenantId is implicit from subdomain
+  // Fallback to FRONTEND_URL for local dev or missing slug
+  const baseUrl = tenantSlug
+    ? `https://${tenantSlug}.strondis.com`
+    : FRONTEND_URL
+  const link = `${baseUrl}/accept-invite?token=${token}`
   const roleDisplay = role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   await send(to, `You've been invited to join ${tenantName} on Strondis`, `
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">

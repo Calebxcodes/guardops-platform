@@ -37,12 +37,13 @@ export async function inviteUser(params: InviteParams) {
   const userId = rows[0].id
 
   const { rows: tenantRows } = await pool.query(
-    'SELECT name FROM public.tenants WHERE id = $1',
+    'SELECT name, slug FROM public.tenants WHERE id = $1',
     [tenantId]
   )
   const tenantName = tenantRows[0]?.name || 'Strondis'
+  const tenantSlug: string | undefined = tenantRows[0]?.slug
 
-  await sendInvitation(email, token, role, tenantName, tenantId)
+  await sendInvitation(email, token, role, tenantName, tenantId, tenantSlug)
 
   await query(
     `INSERT INTO audit_log (user_type, user_id, action, resource_type, resource_id, ip_address)
@@ -102,12 +103,13 @@ export async function resendInvitation(tenantId: number, userId: number): Promis
   if (!rows[0]) throw new Error('User not found or has already accepted their invitation')
 
   const { rows: tenantRows } = await pool.query(
-    'SELECT name FROM public.tenants WHERE id = $1',
+    'SELECT name, slug FROM public.tenants WHERE id = $1',
     [tenantId]
   )
   const tenantName = tenantRows[0]?.name || 'Strondis'
+  const tenantSlug: string | undefined = tenantRows[0]?.slug
 
-  await sendInvitation(rows[0].email, token, rows[0].role, tenantName, tenantId)
+  await sendInvitation(rows[0].email, token, rows[0].role, tenantName, tenantId, tenantSlug)
 }
 
 export async function notifyRoleChange(email: string, oldRole: string, newRole: string): Promise<void> {

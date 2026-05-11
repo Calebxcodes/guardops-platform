@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { adminUsersApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
+import { useTenantStore } from '../../store/tenantStore'
 import { Shield, Loader, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react'
 import { ROLE_LABELS } from '../../utils/permissions'
 
@@ -12,8 +13,10 @@ export default function AcceptInvite() {
   const navigate  = useNavigate()
   const { setAuth } = useAuthStore()
 
-  const token    = params.get('token') || ''
-  const tenantId = params.get('tenantId') || ''
+  const token     = params.get('token') || ''
+  const tenant    = useTenantStore(s => s.tenant)
+  // Support both old links (?token=X&tenantId=Y) and new subdomain links (?token=X)
+  const tenantId  = params.get('tenantId') || String(tenant?.id || '')
 
   const [step, setStep]             = useState<Step>('loading')
   const [inviteInfo, setInviteInfo] = useState<{ email: string; name: string; role: string } | null>(null)

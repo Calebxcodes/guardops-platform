@@ -7,6 +7,7 @@ import {
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 import { useAuthStore } from '../store/authStore'
+import { useTenantStore } from '../store/tenantStore'
 import { useInactivityTimer } from '../hooks/useInactivityTimer'
 import { canAccessNav, ROLE_LABELS, type RoleType } from '../utils/permissions'
 import SessionTimeoutModal from './SessionTimeoutModal'
@@ -39,6 +40,7 @@ export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const { admin, logout } = useAuthStore()
+  const tenant = useTenantStore(s => s.tenant)
   const navigate = useNavigate()
 
   const role = (admin?.role || 'owner') as RoleType
@@ -98,7 +100,9 @@ export default function Layout() {
           </div>
           {sidebarOpen && (
             <div className="min-w-0 flex-1">
-              <div className="font-bold text-sm leading-none text-white tracking-tight">Strondis Ops</div>
+              <div className="font-bold text-sm leading-none text-white tracking-tight truncate">
+                {tenant?.name || 'Strondis Ops'}
+              </div>
               <div className="text-gray-500 text-xs mt-0.5">Operations Platform</div>
             </div>
           )}

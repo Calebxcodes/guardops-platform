@@ -1,6 +1,8 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
+import { useTenantStore } from './store/tenantStore'
+import { getSubdomainSlug } from './utils/tenantDetection'
 import CookieConsent from './components/CookieConsent'
 
 // Eagerly load Layout — it's the app shell, needed immediately after login
@@ -40,6 +42,64 @@ function PageLoader() {
   )
 }
 
+function CompanyNotFound() {
+  return (
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-6">
+      <div className="text-center">
+        <div className="w-16 h-16 bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <span className="text-2xl font-black text-blue-400">S</span>
+        </div>
+        <h1 className="text-white text-xl font-semibold">Company not found</h1>
+        <p className="text-gray-400 text-sm mt-2">
+          This URL is not associated with any company on Strondis.
+        </p>
+        <p className="text-gray-600 text-xs mt-4">
+          If you have an account, check your invitation email for the correct link.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function TenantGuard({ children }: { children: React.ReactNode }) {
+  const setTenant = useTenantStore(s => s.setTenant)
+  const { token, admin, logout } = useAuthStore()
+  const [status, setStatus] = useState<'loading' | 'ready' | 'not-found'>('loading')
+
+  useEffect(() => {
+    const slug = getSubdomainSlug()
+
+    if (!slug) {
+      // localhost without VITE_DEV_TENANT_SLUG — skip tenant enforcement in dev
+      setStatus('ready')
+      return
+    }
+
+    const apiBase = import.meta.env.VITE_API_URL
+      ? `${import.meta.env.VITE_API_URL}/api`
+      : '/api'
+
+    fetch(`${apiBase}/tenant/by-slug/${encodeURIComponent(slug)}`)
+      .then(r => {
+        if (!r.ok) throw new Error('not-found')
+        return r.json()
+      })
+      .then(data => {
+        setTenant({ id: Number(data.id), name: data.name, slug: data.slug })
+        // Q4: If stored JWT belongs to a different tenant, force re-login
+        if (token && admin?.tenantId && admin.tenantId !== Number(data.id)) {
+          logout()
+        }
+        setStatus('ready')
+      })
+      .catch(() => setStatus('not-found'))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (status === 'loading') return <PageLoader />
+  if (status === 'not-found') return <CompanyNotFound />
+  return <>{children}</>
+}
+
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore(s => s.token)
   return token ? <>{children}</> : <Navigate to="/login" replace />
@@ -48,6 +108,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <TenantGuard>
       <CookieConsent />
       <Suspense fallback={<PageLoader />}>
         <Routes>
@@ -80,6 +141,7 @@ export default function App() {
           </Route>
         </Routes>
       </Suspense>
+      </TenantGuard>
     </BrowserRouter>
   )
 }
