@@ -5,8 +5,14 @@ import StatusBadge from '../../components/StatusBadge'
 import { format } from 'date-fns'
 import { Download, RefreshCw, PoundSterling, AlertCircle } from 'lucide-react'
 import { loadSettings } from '../../hooks/useSettings'
+import { useAuthStore, type RoleType } from '../../store/authStore'
+import { canPerform } from '../../utils/permissions'
 
 export default function Payroll() {
+  const { admin } = useAuthStore()
+  const role = (admin?.role || 'owner') as RoleType
+  const canGenerate = canPerform(role, 'payroll', 'create')
+  const canMarkPaid = canPerform(role, 'payroll', 'update')
   const [records, setRecords] = useState<PayrollRecord[]>([])
   const [total,   setTotal]   = useState(0)
   const [page,    setPage]    = useState(1)
@@ -92,10 +98,12 @@ export default function Payroll() {
             <label className="label">Period End</label>
             <input className="input" type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} />
           </div>
-          <button className="btn-primary flex items-center justify-center gap-2" onClick={generate} disabled={generating}>
-            <RefreshCw size={15} className={generating ? 'animate-spin' : ''} />
-            {generating ? 'Generating...' : 'Generate Payroll'}
-          </button>
+          {canGenerate && (
+            <button className="btn-primary flex items-center justify-center gap-2" onClick={generate} disabled={generating}>
+              <RefreshCw size={15} className={generating ? 'animate-spin' : ''} />
+              {generating ? 'Generating...' : 'Generate Payroll'}
+            </button>
+          )}
         </div>
         {error && (
           <div className="mt-3 text-red-600 text-sm flex items-center gap-1">
@@ -161,7 +169,7 @@ export default function Payroll() {
                 <td className="px-4 py-3 text-right font-semibold">£{r.net_pay.toFixed(2)}</td>
                 <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                 <td className="px-4 py-3">
-                  {r.status === 'pending' && (
+                  {r.status === 'pending' && canMarkPaid && (
                     <button
                       className="text-sm text-blue-600 hover:underline flex items-center gap-1"
                       onClick={() => markPaid(r.id)}

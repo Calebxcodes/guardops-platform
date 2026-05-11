@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { query } from '../db/schema'
+import { requirePermission } from '../middleware/rbac'
 
 const router = Router()
 
@@ -36,7 +37,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 const VALID_SEVERITIES = ['minor', 'moderate', 'major', 'critical'] as const
 
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requirePermission('incidents', 'create'), async (req: Request, res: Response) => {
   const { site_id, guard_id, shift_id, type, severity, description, bodycam } = req.body
   if (!site_id) return res.status(400).json({ error: 'site_id is required' })
   if (!type || !type.trim()) return res.status(400).json({ error: 'Incident type is required' })
@@ -57,7 +58,7 @@ router.post('/', async (req: Request, res: Response) => {
   res.status(201).json(incident[0])
 })
 
-router.put('/:id/resolve', async (req: Request, res: Response) => {
+router.put('/:id/resolve', requirePermission('incidents', 'update'), async (req: Request, res: Response) => {
   await query(`UPDATE incidents SET resolved = 1, resolved_at = NOW() WHERE id = $1`, [req.params.id])
   const { rows } = await query('SELECT * FROM incidents WHERE id = $1', [req.params.id])
   res.json(rows[0])

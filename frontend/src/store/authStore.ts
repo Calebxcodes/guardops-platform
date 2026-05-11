@@ -1,9 +1,13 @@
 import { create } from 'zustand'
 
-interface Admin {
+export type RoleType = 'owner' | 'manager' | 'scheduler' | 'payroll_manager' | 'viewer'
+
+export interface Admin {
   id: number
   name: string
   email: string
+  role: RoleType
+  tenantId?: number | null
 }
 
 interface AuthState {

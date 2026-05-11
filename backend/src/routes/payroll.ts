@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { query } from '../db/schema'
 import { notifyGuard } from '../services/push'
+import { requirePermission } from '../middleware/rbac'
 
 const router = Router()
 
@@ -20,7 +21,7 @@ router.get('/', async (req: Request, res: Response) => {
   res.json({ data: rows, total, page, limit, pages: Math.ceil(total / limit) })
 })
 
-router.post('/generate', async (req: Request, res: Response) => {
+router.post('/generate', requirePermission('payroll', 'create'), async (req: Request, res: Response) => {
   const { period_start, period_end, tax_rate } = req.body
 
   // Validate date format (YYYY-MM-DD)
@@ -85,7 +86,7 @@ router.post('/generate', async (req: Request, res: Response) => {
   res.json({ generated: records.length, records })
 })
 
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', requirePermission('payroll', 'update'), async (req: Request, res: Response) => {
   const { status, bonuses, deductions } = req.body
   const { rows: existing } = await query('SELECT * FROM payroll_records WHERE id = $1', [req.params.id])
   const record = existing[0]

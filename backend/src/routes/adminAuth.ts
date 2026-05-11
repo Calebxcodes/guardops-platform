@@ -48,8 +48,8 @@ const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set. Refusing to start.')
 
-function signAdminToken(id: number, email: string, tenantId: number | null = null) {
-  return jwt.sign({ adminId: id, email, role: 'admin', tenantId }, JWT_SECRET, { expiresIn: '8h' })
+function signAdminToken(id: number, email: string, tenantId: number | null = null, adminRole: string = 'owner') {
+  return jwt.sign({ adminId: id, email, role: 'admin', adminRole, tenantId }, JWT_SECRET, { expiresIn: '8h' })
 }
 
 // Short-lived token issued after password verification when 2FA is required.
@@ -74,8 +74,9 @@ export function requireAdmin(req: any, res: Response, next: any) {
   try {
     const payload = jwt.verify(auth.slice(7), JWT_SECRET) as any
     if (payload.role !== 'admin') return res.status(403).json({ error: 'Not admin' })
-    req.adminId = payload.adminId
-    req.tenantId = payload.tenantId ?? null
+    req.adminId   = payload.adminId
+    req.tenantId  = payload.tenantId ?? null
+    req.adminRole = payload.adminRole || 'owner'
     // Activate tenant schema context for all downstream queries in this request
     if (payload.tenantId) {
       tenantStorage.run(payload.tenantId, next)
@@ -164,12 +165,12 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 
   auditLog({ user_type: 'admin', user_id: admin.id, action: 'login', ip_address: req.ip })
-  const token = signAdminToken(admin.id, admin.email, tenantId)
-  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email, tenantId } })
+  const token = signAdminToken(admin.id, admin.email, tenantId, admin.role || 'owner')
+  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role || 'owner', tenantId } })
 })
 
 router.get('/me', requireAdmin, async (req: any, res: Response) => {
-  const { rows } = await query('SELECT id, name, email, created_at FROM admin_users WHERE id = $1', [req.adminId])
+  const { rows } = await query('SELECT id, name, email, role, created_at FROM admin_users WHERE id = $1', [req.adminId])
   res.json(rows[0])
 })
 
@@ -251,8 +252,8 @@ router.post('/2fa/validate', async (req: Request, res: Response) => {
   }
 
   auditLog({ user_type: 'admin', user_id: admin.id, action: 'login', ip_address: req.ip })
-  const token = signAdminToken(admin.id, admin.email, payload.tenantId ?? null)
-  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email, tenantId: payload.tenantId ?? null } })
+  const token = signAdminToken(admin.id, admin.email, payload.tenantId ?? null, admin.role || 'owner')
+  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role || 'owner', tenantId: payload.tenantId ?? null } })
 })
 
 // ── 2FA — management (requires full admin auth) ───────────────────────────────

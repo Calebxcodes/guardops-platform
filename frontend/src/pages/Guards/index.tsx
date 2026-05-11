@@ -7,8 +7,15 @@ import DeleteGuardModal from '../../components/DeleteGuardModal'
 import { Plus, Search, Edit, Trash2, AlertTriangle, Filter, MoreVertical } from 'lucide-react'
 import { differenceInDays, parseISO } from 'date-fns'
 import GuardForm from './GuardForm'
+import { useAuthStore, type RoleType } from '../../store/authStore'
+import { canPerform } from '../../utils/permissions'
 
 export default function Guards() {
+  const { admin } = useAuthStore()
+  const role = (admin?.role || 'owner') as RoleType
+  const canCreate  = canPerform(role, 'guards', 'create')
+  const canEdit    = canPerform(role, 'guards', 'update')
+  const canDelete  = canPerform(role, 'guards', 'delete')
   const [guards, setGuards]           = useState<Guard[]>([])
   const [search, setSearch]           = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -82,21 +89,30 @@ export default function Guards() {
 
         {isOpen && (
           <div className="absolute right-0 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 text-sm">
-            <button
-              onClick={() => openEdit(guard)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Edit size={14} className="text-gray-400" />
-              Edit Guard
-            </button>
-            <div className="mx-2 my-1 border-t border-gray-100" />
-            <button
-              onClick={() => openDelete(guard)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-red-600 hover:bg-red-50 transition-colors"
-            >
-              <Trash2 size={14} />
-              Delete Guard Profile
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => openEdit(guard)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Edit size={14} className="text-gray-400" />
+                Edit Guard
+              </button>
+            )}
+            {canDelete && (
+              <>
+                <div className="mx-2 my-1 border-t border-gray-100" />
+                <button
+                  onClick={() => openDelete(guard)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Delete Guard Profile
+                </button>
+              </>
+            )}
+            {!canEdit && !canDelete && (
+              <p className="px-3 py-2 text-gray-400 text-xs">View only</p>
+            )}
           </div>
         )}
       </div>
@@ -111,14 +127,16 @@ export default function Guards() {
           <h1 className="text-xl sm:text-2xl font-bold">Guards</h1>
           <p className="text-gray-500 text-sm mt-0.5">{guards.length} total officers</p>
         </div>
-        <button
-          className="btn-primary flex items-center gap-1.5 text-sm whitespace-nowrap"
-          onClick={() => { setEditing(null); setShowForm(true) }}
-        >
-          <Plus size={15} />
-          <span className="hidden sm:inline">Add Guard</span>
-          <span className="sm:hidden">Add</span>
-        </button>
+        {canCreate && (
+          <button
+            className="btn-primary flex items-center gap-1.5 text-sm whitespace-nowrap"
+            onClick={() => { setEditing(null); setShowForm(true) }}
+          >
+            <Plus size={15} />
+            <span className="hidden sm:inline">Add Guard</span>
+            <span className="sm:hidden">Add</span>
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -161,7 +179,9 @@ export default function Guards() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Guard</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Rate</th>
+                  {role !== 'scheduler' && (
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Rate</th>
+                  )}
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Skills</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Certs</th>
                   <th className="px-4 py-3 w-12"></th>
@@ -185,7 +205,9 @@ export default function Guards() {
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={guard.status} /></td>
                     <td className="px-4 py-3"><StatusBadge status={guard.employment_type} /></td>
-                    <td className="px-4 py-3 font-medium">£{guard.hourly_rate}/hr</td>
+                    {role !== 'scheduler' && (
+                      <td className="px-4 py-3 font-medium">£{guard.hourly_rate}/hr</td>
+                    )}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {guard.skills?.slice(0, 2).map(s => (

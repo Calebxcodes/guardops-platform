@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import { query } from '../db/schema'
 import { notifyGuard } from '../services/push'
 import { format } from 'date-fns'
+import { requirePermission } from '../middleware/rbac'
 
 const router = Router()
 
@@ -27,7 +28,7 @@ router.get('/', async (req: Request, res: Response) => {
   res.json(rows)
 })
 
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requirePermission('shifts', 'create'), async (req: Request, res: Response) => {
   const { site_id, guard_id, start_time, end_time, hourly_rate, break_minutes, notes } = req.body
 
   // Validate required fields and time logic
@@ -87,7 +88,7 @@ router.post('/', async (req: Request, res: Response) => {
   res.status(201).json(s)
 })
 
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', requirePermission('shifts', 'update'), async (req: Request, res: Response) => {
   const { site_id, guard_id, start_time, end_time, status, hourly_rate, break_minutes, notes } = req.body
 
   if (start_time && end_time) {
@@ -138,7 +139,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   res.json(updated)
 })
 
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', requirePermission('shifts', 'delete'), async (req: Request, res: Response) => {
   // Fetch before cancelling so we can notify the guard
   const { rows: before } = await query(`
     SELECT sh.guard_id, sh.start_time, s.name as site_name

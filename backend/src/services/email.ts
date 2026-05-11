@@ -66,6 +66,73 @@ export async function sendGuardNotificationEmail(
   `)
 }
 
+export async function sendInvitation(
+  to: string,
+  token: string,
+  role: string,
+  tenantName: string,
+  tenantId: number
+) {
+  const appUrl = process.env.APP_URL || 'https://app.strondis.com'
+  const link = `${appUrl}/accept-invite?token=${token}&tenantId=${tenantId}`
+  const roleDisplay = role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  await send(to, `You've been invited to join ${tenantName} on Strondis`, `
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <div style="margin-bottom:20px">
+        <div style="display:inline-flex;align-items:center;gap:10px">
+          <div style="width:36px;height:36px;background:#2563eb;border-radius:8px;display:flex;align-items:center;justify-content:center">
+            <span style="color:white;font-weight:900;font-size:18px;font-family:Arial Black,sans-serif">S</span>
+          </div>
+          <span style="font-weight:700;font-size:18px;color:#111827">Strondis</span>
+        </div>
+      </div>
+      <h2 style="color:#111827;margin:0 0 8px">You're invited to join ${tenantName}</h2>
+      <p style="color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 8px">
+        You've been invited as a <strong>${roleDisplay}</strong>. Click the button below to set your password and get started.
+      </p>
+      <p style="color:#9ca3af;font-size:13px;margin:0 0 24px">This invitation expires in <strong>24 hours</strong>.</p>
+      <a href="${link}" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px">
+        Accept Invitation →
+      </a>
+      <p style="color:#9ca3af;font-size:13px;margin-top:24px">
+        If you didn't expect this invitation, you can safely ignore this email.
+      </p>
+      <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0" />
+      <p style="color:#d1d5db;font-size:11px">Strondis Ltd · noreply@strondis.com</p>
+    </div>
+  `)
+}
+
+export async function sendRoleChangeNotification(to: string, oldRole: string, newRole: string) {
+  const oldDisplay = oldRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const newDisplay = newRole.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const appUrl = process.env.APP_URL || 'https://app.strondis.com'
+  await send(to, 'Your Strondis role has been updated', `
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <div style="margin-bottom:20px">
+        <div style="display:inline-flex;align-items:center;gap:10px">
+          <div style="width:36px;height:36px;background:#2563eb;border-radius:8px;display:flex;align-items:center;justify-content:center">
+            <span style="color:white;font-weight:900;font-size:18px;font-family:Arial Black,sans-serif">S</span>
+          </div>
+          <span style="font-weight:700;font-size:18px;color:#111827">Strondis</span>
+        </div>
+      </div>
+      <h2 style="color:#111827;margin:0 0 8px">Your role has been updated</h2>
+      <p style="color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 8px">
+        Your role has changed from <strong>${oldDisplay}</strong> to <strong>${newDisplay}</strong>.
+      </p>
+      <p style="color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 24px">
+        Please log out and log back in to see your updated permissions.
+      </p>
+      <a href="${appUrl}/login" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px">
+        Log In →
+      </a>
+      <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0" />
+      <p style="color:#d1d5db;font-size:11px">Strondis Ltd · noreply@strondis.com</p>
+    </div>
+  `)
+}
+
 export async function sendAlertEmail(to: string, subject: string, lines: string[]) {
   await send(to, subject, `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">

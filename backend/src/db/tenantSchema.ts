@@ -15,17 +15,29 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS admin_users (
-        id             SERIAL PRIMARY KEY,
-        name           TEXT NOT NULL DEFAULT '',
-        email          TEXT UNIQUE NOT NULL,
-        password_hash  TEXT,
-        role           TEXT DEFAULT 'owner',
-        oauth_provider TEXT,
-        oauth_subject  TEXT,
-        totp_secret    TEXT,
-        totp_enabled   INTEGER DEFAULT 0,
-        totp_backup_codes TEXT,
-        created_at     TIMESTAMPTZ DEFAULT NOW()
+        id                      SERIAL PRIMARY KEY,
+        name                    TEXT NOT NULL DEFAULT '',
+        email                   TEXT UNIQUE NOT NULL,
+        password_hash           TEXT,
+        role                    TEXT NOT NULL DEFAULT 'owner',
+        oauth_provider          TEXT,
+        oauth_subject           TEXT,
+        totp_secret             TEXT,
+        totp_enabled            INTEGER DEFAULT 0,
+        totp_backup_codes       TEXT,
+        invitation_token        TEXT,
+        invitation_expires_at   BIGINT,
+        invitation_accepted     INTEGER DEFAULT 0,
+        created_at              TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS role_policies (
+        id         SERIAL PRIMARY KEY,
+        role       TEXT NOT NULL,
+        feature    TEXT NOT NULL,
+        action     TEXT NOT NULL,
+        allowed    INTEGER DEFAULT 1,
+        created_at TIMESTAMPTZ DEFAULT NOW()
       );
 
       CREATE TABLE IF NOT EXISTS guards (

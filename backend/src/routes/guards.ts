@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import * as Sentry from '@sentry/node'
 import { query } from '../db/pool'
+import { requirePermission } from '../middleware/rbac'
 
 const router = Router()
 
@@ -78,7 +79,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 // ── Create guard ──────────────────────────────────────────────────────────────
 
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requirePermission('guards', 'create'), async (req: Request, res: Response) => {
   const {
     first_name, last_name, email, phone, address, date_of_birth,
     employment_type, hourly_rate, certifications, skills,
@@ -119,7 +120,7 @@ router.post('/', async (req: Request, res: Response) => {
 
 // ── Update guard ──────────────────────────────────────────────────────────────
 
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', requirePermission('guards', 'update'), async (req: Request, res: Response) => {
   const {
     first_name, last_name, email, phone, address, date_of_birth,
     employment_type, status, hourly_rate, certifications, skills,
@@ -164,7 +165,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 // Sets deleted_at; leaves all shift/payroll/incident records intact.
 // Requires admin password confirmation — this action is tracked in the audit log.
 
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', requirePermission('guards', 'delete'), async (req: Request, res: Response) => {
   const { password } = req.body as { password?: string }
   const guardId = Number(req.params.id)
 
@@ -216,6 +217,41 @@ router.delete('/:id', async (req: Request, res: Response) => {
     })
   } catch (err: any) {
     console.error('[guards DELETE /:id]', err)
+    Sentry.captureException(err)
+    return res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// ── Suspend guard (set status = inactive) ─────────────────────────────────────
+
+router.patch('/:id/suspend', requirePermission('guards', 'suspend'), async (req: Request, res: Response) => {
+  const guardId = Number(req.params.id)
+  try {
+    const { rows } = await query(
+      'SELECT id, deleted_at FROM guards WHERE id = $1',
+      [guardId],
+      tid(req)
+    )
+    if (!rows[0] || rows[0].deleted_at)
+      return res.status(404).json({ success: false, message: 'Guard not found' })
+
+    await query(
+      "UPDATE guards SET status = 'inactive' WHERE id = $1",
+      [guardId],
+      tid(req)
+    )
+
+    await query(
+      `INSERT INTO audit_log
+         (user_type, user_id, action, resource_type, resource_id, ip_address)
+       VALUES ('admin', $1, 'GUARD_SUSPENDED', 'guard', $2, $3)`,
+      [adminId(req), guardId, req.ip ?? null],
+      tid(req)
+    )
+
+    return res.json({ success: true, message: 'Guard suspended' })
+  } catch (err: any) {
+    console.error('[guards PATCH /:id/suspend]', err)
     Sentry.captureException(err)
     return res.status(500).json({ success: false, message: err.message })
   }

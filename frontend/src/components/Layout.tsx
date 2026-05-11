@@ -2,12 +2,13 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, MapPin, Calendar, ClipboardList,
   DollarSign, BarChart2, AlertTriangle, Settings, Shield,
-  ShieldCheck, ExternalLink, MessageSquare, LogOut, Menu, X, FolderOpen, LineChart, Bell
+  ShieldCheck, ExternalLink, MessageSquare, LogOut, Menu, X, FolderOpen, LineChart, Bell, UserCog
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 import { useAuthStore } from '../store/authStore'
 import { useInactivityTimer } from '../hooks/useInactivityTimer'
+import { canAccessNav, ROLE_LABELS, type RoleType } from '../utils/permissions'
 import SessionTimeoutModal from './SessionTimeoutModal'
 import { messagesApi } from '../api'
 
@@ -26,6 +27,7 @@ const nav = [
   { to: '/messages',       label: 'Messages',        icon: MessageSquare },
   { to: '/notifications',  label: 'Notifications',   icon: Bell },
   { to: '/documents',      label: 'Documents',       icon: FolderOpen },
+  { to: '/settings/users', label: 'Team Members', icon: UserCog },
   { to: '/settings',   label: 'Settings',        icon: Settings },
 ]
 
@@ -38,6 +40,10 @@ export default function Layout() {
   const [unreadMessages, setUnreadMessages] = useState(0)
   const { admin, logout } = useAuthStore()
   const navigate = useNavigate()
+
+  const role = (admin?.role || 'owner') as RoleType
+  const visibleNav = nav.filter(item => canAccessNav(role, item.to))
+  const visibleMobileNav = visibleNav.slice(0, 5)
 
   // Poll for unread guard messages every 30s
   useEffect(() => {
@@ -106,7 +112,7 @@ export default function Layout() {
 
         {/* Nav */}
         <nav className="flex-1 py-3 space-y-0.5 overflow-y-auto">
-          {nav.map(({ to, label, icon: Icon, end }) => (
+          {visibleNav.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to} to={to} end={end}
               className={({ isActive }) => clsx(
@@ -137,7 +143,12 @@ export default function Layout() {
           {sidebarOpen ? (
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs text-gray-500 min-w-0">
-                <div className="font-medium text-gray-300 truncate">{admin?.name || 'Admin'}</div>
+                <div className="font-medium text-gray-300 truncate">
+                  {admin?.name || 'Admin'}
+                  {admin?.role && admin.role !== 'owner' && (
+                    <span className="ml-1.5 text-[10px] text-blue-400 font-normal">[{ROLE_LABELS[admin.role as RoleType]}]</span>
+                  )}
+                </div>
                 <div className="truncate">{admin?.email}</div>
               </div>
               <button onClick={handleLogout} title="Sign out"
@@ -182,7 +193,7 @@ export default function Layout() {
 
             {/* Nav */}
             <nav className="flex-1 py-3 space-y-0.5 overflow-y-auto">
-              {nav.map(({ to, label, icon: Icon, end }) => (
+              {visibleNav.map(({ to, label, icon: Icon, end }) => (
                 <NavLink
                   key={to} to={to} end={end}
                   onClick={() => setMobileMenuOpen(false)}
@@ -213,7 +224,12 @@ export default function Layout() {
             <div className="px-5 py-4 border-t border-gray-800 shrink-0">
               <div className="flex items-center justify-between">
                 <div className="text-xs text-gray-500">
-                  <div className="font-medium text-gray-300">{admin?.name || 'Admin'}</div>
+                  <div className="font-medium text-gray-300">
+                    {admin?.name || 'Admin'}
+                    {admin?.role && admin.role !== 'owner' && (
+                      <span className="ml-1.5 text-[10px] text-blue-400 font-normal">[{ROLE_LABELS[admin.role as RoleType]}]</span>
+                    )}
+                  </div>
                   <div className="truncate max-w-[180px]">{admin?.email}</div>
                 </div>
                 <button onClick={handleLogout}
@@ -255,7 +271,7 @@ export default function Layout() {
 
         {/* Mobile bottom nav */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 flex items-center justify-around px-2 h-16 safe-area-pb">
-          {mobileNav.map(({ to, label, icon: Icon, end }) => (
+          {visibleMobileNav.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to} to={to} end={end}
               className={({ isActive }) => clsx(

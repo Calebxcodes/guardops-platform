@@ -191,6 +191,23 @@ export const tenantApi = {
     api.post('/tenant/archive', { password }).then(r => r.data),
 }
 
+export const adminUsersApi = {
+  list: (): Promise<{ success: boolean; users: any[] }> =>
+    api.get('/admin/users').then(r => r.data),
+  invite: (data: { email: string; name?: string; role: string }): Promise<{ success: boolean; user: any }> =>
+    api.post('/admin/users/invite', data).then(r => r.data),
+  resendInvite: (userId: number): Promise<{ success: boolean; message: string }> =>
+    api.post(`/admin/users/${userId}/resend-invite`).then(r => r.data),
+  changeRole: (userId: number, role: string): Promise<{ success: boolean; message: string }> =>
+    api.put(`/admin/users/${userId}/role`, { role }).then(r => r.data),
+  remove: (userId: number): Promise<{ success: boolean; message: string }> =>
+    api.delete(`/admin/users/${userId}`).then(r => r.data),
+  inviteInfo: (token: string, tenantId: string): Promise<{ success: boolean; email: string; name: string; role: string }> =>
+    api.get('/admin/users/invite-info', { params: { token, tenantId } }).then(r => r.data),
+  acceptInvite: (data: { token: string; password: string; tenantId: string | number }): Promise<{ success: boolean; token: string; admin: any }> =>
+    api.post('/admin/users/accept-invite', data).then(r => r.data),
+}
+
 export const portalApi = {
   generate:    (client_id: number, label?: string) =>
     api.post('/portal/generate', { client_id, label }).then(r => r.data),

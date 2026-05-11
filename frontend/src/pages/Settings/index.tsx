@@ -4,10 +4,14 @@ import { loadSettings, saveSettings, AppSettings } from '../../hooks/useSettings
 import PrivacyDialog from '../../components/PrivacyDialog'
 import DeleteTenantModal from '../../components/DeleteTenantModal'
 import { adminAuthApi, tenantApi } from '../../api'
+import { useAuthStore, type RoleType } from '../../store/authStore'
+import { canAccessSettings } from '../../utils/permissions'
 
 type TwoFaStep = 'idle' | 'setup' | 'confirm' | 'backup' | 'disabling' | 'regen'
 
 export default function Settings() {
+  const { admin } = useAuthStore()
+  const role = (admin?.role || 'owner') as RoleType
   const [settings, setSettings] = useState<AppSettings>(loadSettings)
   const [saved, setSaved] = useState(false)
   const [showPrivacy, setShowPrivacy] = useState(false)
@@ -140,6 +144,7 @@ export default function Settings() {
       </div>
 
       {/* Company Settings */}
+      {canAccessSettings(role, 'company') && (
       <div className="card p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2"><Shield size={16} className="text-blue-500" /> Company</h2>
         <div className="grid grid-cols-2 gap-4">
@@ -183,6 +188,7 @@ export default function Settings() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Payroll Config */}
       <div className="card p-5 space-y-4">
@@ -386,6 +392,7 @@ export default function Settings() {
       </div>
 
       {/* ── Data & Account Management ─────────────────────────────────────── */}
+      {canAccessSettings(role, 'dangerZone') && (
       <div className="rounded-xl border border-red-200 bg-red-50/50 p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Trash2 size={15} className="text-red-500" />
@@ -526,6 +533,8 @@ export default function Settings() {
           </button>
         </div>
       </div>
+
+      )}
 
       {showPrivacy && <PrivacyDialog onClose={() => setShowPrivacy(false)} />}
 

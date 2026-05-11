@@ -28,6 +28,8 @@ const Messages        = lazy(() => import('./pages/Messages'))
 const Analytics       = lazy(() => import('./pages/Analytics'))
 const Documents       = lazy(() => import('./pages/Documents'))
 const Notifications   = lazy(() => import('./pages/Notifications'))
+const AcceptInvite    = lazy(() => import('./pages/AcceptInvite'))
+const SettingsUsers   = lazy(() => import('./pages/Settings/Users'))
 
 // Full-screen spinner shown while a lazy chunk is loading
 function PageLoader() {
@@ -55,6 +57,7 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password"  element={<ResetPassword />} />
           <Route path="/portal/:token"   element={<PortalView />} />
+          <Route path="/accept-invite"   element={<AcceptInvite />} />
 
           {/* Protected admin CRM */}
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
@@ -73,6 +76,7 @@ export default function App() {
             <Route path="documents"       element={<Documents />} />
             <Route path="notifications"   element={<Notifications />} />
             <Route path="settings"        element={<Settings />} />
+            <Route path="settings/users"  element={<SettingsUsers />} />
           </Route>
         </Routes>
       </Suspense>

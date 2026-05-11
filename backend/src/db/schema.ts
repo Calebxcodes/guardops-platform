@@ -501,6 +501,33 @@ export async function initSchema() {
   } catch {
     // public.tenants may not exist yet on a fresh database — safe to skip
   }
+
+  // ── RBAC columns for admin_users + role_policies table (Upgrade #35) ────────
+  try {
+    const { rows: tenants } = await pool.query(
+      `SELECT id FROM public.tenants WHERE status != 'deleted'`
+    )
+    for (const t of tenants) {
+      await pool.query(`
+        ALTER TABLE IF EXISTS tenant_${t.id}.admin_users
+          ADD COLUMN IF NOT EXISTS invitation_token        TEXT,
+          ADD COLUMN IF NOT EXISTS invitation_expires_at   BIGINT,
+          ADD COLUMN IF NOT EXISTS invitation_accepted     INTEGER DEFAULT 0;
+      `)
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS tenant_${t.id}.role_policies (
+          id         SERIAL PRIMARY KEY,
+          role       TEXT NOT NULL,
+          feature    TEXT NOT NULL,
+          action     TEXT NOT NULL,
+          allowed    INTEGER DEFAULT 1,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `)
+    }
+  } catch {
+    // public.tenants may not exist yet on a fresh database — safe to skip
+  }
 }
 
 // ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────

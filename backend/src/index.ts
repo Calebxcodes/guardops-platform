@@ -46,6 +46,7 @@ import masterAdminUsersRouter from './routes/masterAdminUsers'
 import masterAdminFlagsRouter from './routes/masterAdminFlags'
 import featureFlagsRouter from './routes/featureFlags'
 import tenantAccountRouter from './routes/tenantAccount'
+import adminUsersRouter from './routes/adminUsers'
 import { runBillingCron } from './services/billingCron'
 import { runRenewalCron } from './services/renewalCron'
 
@@ -230,6 +231,9 @@ app.use('/api', signupRouter)
 // ── Feature flags (public — tenant-aware) ─────────────────────────────────
 app.use('/api', featureFlagsRouter)
 app.use('/api/tenant', tenantAccountRouter)
+
+// ── Admin user management (team members, roles, invitations) ──────────────
+app.use('/api/admin/users', adminUsersRouter)
 
 // ── Master admin panel ────────────────────────────────────────────────────
 app.use('/api/master-admin', masterAdminAuthRouter)
