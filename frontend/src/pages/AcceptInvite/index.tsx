@@ -44,8 +44,8 @@ export default function AcceptInvite() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password.length < 8) {
-      setSubmitError('Password must be at least 8 characters.')
+    if (password.length < 10) {
+      setSubmitError('Password must be at least 10 characters.')
       return
     }
     if (password !== confirm) {
@@ -122,11 +122,11 @@ export default function AcceptInvite() {
                   <input
                     type={showPass ? 'text' : 'password'}
                     className="input pr-10 w-full"
-                    placeholder="At least 8 characters"
+                    placeholder="At least 10 characters"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     required
-                    minLength={8}
+                    minLength={10}
                     disabled={submitting}
                   />
                   <button
