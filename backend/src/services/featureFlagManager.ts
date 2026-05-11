@@ -7,6 +7,7 @@ export interface FeatureFlags {
   websocket_messaging_enabled: boolean
   geofencing_alerts_enabled: boolean
   api_v2_enabled: boolean
+  chatbot_enabled: boolean
 }
 
 const FLAG_ENV_MAP: Record<keyof FeatureFlags, string> = {
@@ -16,6 +17,7 @@ const FLAG_ENV_MAP: Record<keyof FeatureFlags, string> = {
   websocket_messaging_enabled:'FEATURE_WEBSOCKETS',
   geofencing_alerts_enabled:  'FEATURE_GEOFENCING',
   api_v2_enabled:             'FEATURE_API_V2',
+  chatbot_enabled:            'FEATURE_CHATBOT',
 }
 
 export class FeatureFlagManager {

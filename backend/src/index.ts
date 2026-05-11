@@ -47,6 +47,7 @@ import masterAdminFlagsRouter from './routes/masterAdminFlags'
 import featureFlagsRouter from './routes/featureFlags'
 import tenantAccountRouter from './routes/tenantAccount'
 import adminUsersRouter from './routes/adminUsers'
+import chatbotRouter from './routes/chatbot'
 import { runBillingCron } from './services/billingCron'
 import { runRenewalCron } from './services/renewalCron'
 
@@ -251,6 +252,9 @@ app.use('/api/tenant', tenantAccountRouter)
 
 // ── Admin user management (team members, roles, invitations) ──────────────
 app.use('/api/admin/users', adminUsersRouter)
+
+// ── Chatbot (AI assistant — per-tenant feature flag) ──────────────────────
+app.use('/api/chatbot', requireAdmin, chatbotRouter)
 
 // ── Master admin panel ────────────────────────────────────────────────────
 app.use('/api/master-admin', masterAdminAuthRouter)

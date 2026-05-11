@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Shield, Clock, DollarSign, Lock, CheckCircle, AlertCircle, Loader, Copy, Eye, EyeOff, Trash2, Download, Archive } from 'lucide-react'
+import { Shield, Clock, DollarSign, Lock, CheckCircle, AlertCircle, Loader, Copy, Eye, EyeOff, Trash2, Download, Archive, MessageCircle } from 'lucide-react'
 import { loadSettings, saveSettings, AppSettings } from '../../hooks/useSettings'
 import PrivacyDialog from '../../components/PrivacyDialog'
 import DeleteTenantModal from '../../components/DeleteTenantModal'
@@ -10,8 +10,12 @@ import { canAccessSettings } from '../../utils/permissions'
 type TwoFaStep = 'idle' | 'setup' | 'confirm' | 'backup' | 'disabling' | 'regen'
 
 export default function Settings() {
-  const { admin } = useAuthStore()
+  const { admin, token } = useAuthStore()
   const role = (admin?.role || 'owner') as RoleType
+
+  // Feature flags state
+  const [chatbotEnabled, setChatbotEnabled] = useState(false)
+  const [chatbotToggling, setChatbotToggling] = useState(false)
   const [settings, setSettings] = useState<AppSettings>(loadSettings)
   const [saved, setSaved] = useState(false)
   const [showPrivacy, setShowPrivacy] = useState(false)
@@ -47,6 +51,33 @@ export default function Settings() {
       .then(r => setTwoFaEnabled(r.enabled))
       .catch(() => setTwoFaEnabled(false))
   }, [])
+
+  useEffect(() => {
+    if (!token) return
+    const apiBase = import.meta.env.VITE_API_URL
+      ? `${import.meta.env.VITE_API_URL}/api`
+      : '/api'
+    fetch(`${apiBase}/feature-flags`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(flags => setChatbotEnabled(flags.chatbot_enabled === true))
+      .catch(() => {})
+  }, [token])
+
+  const handleToggleChatbot = async (checked: boolean) => {
+    setChatbotToggling(true)
+    try {
+      const apiBase = import.meta.env.VITE_API_URL
+        ? `${import.meta.env.VITE_API_URL}/api`
+        : '/api'
+      await fetch(`${apiBase}/feature-flags`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ flag: 'chatbot_enabled', enabled: checked }),
+      })
+      setChatbotEnabled(checked)
+    } catch { /* ignore */ }
+    finally { setChatbotToggling(false) }
+  }
 
   const resetTwoFa = () => {
     setTwoFaStep('idle'); setTwoFaCode(''); setTwoFaPassword('')
@@ -142,6 +173,29 @@ export default function Settings() {
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-gray-500 text-sm mt-1">Configure your Strondis Ops instance</p>
       </div>
+
+      {/* Features (owner only) */}
+      {role === 'owner' && (
+      <div className="card p-5 space-y-4">
+        <h2 className="font-semibold flex items-center gap-2"><MessageCircle size={16} className="text-blue-500" /> Features</h2>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">AI Chatbot</p>
+            <p className="text-xs text-gray-500 mt-0.5">Enable Strondis Assistant for your team (bottom-right button)</p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={chatbotEnabled}
+              onChange={e => handleToggleChatbot(e.target.checked)}
+              disabled={chatbotToggling}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" />
+          </label>
+        </div>
+      </div>
+      )}
 
       {/* Company Settings */}
       {canAccessSettings(role, 'company') && (

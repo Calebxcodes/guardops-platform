@@ -483,6 +483,42 @@ export async function initSchema() {
     ALTER TABLE public.master_admins ADD COLUMN IF NOT EXISTS archived_at BIGINT;
   `)
 
+  // Chatbot tables (public schema, tenant_id for isolation)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.chatbot_feedback (
+      id         BIGSERIAL PRIMARY KEY,
+      tenant_id  BIGINT NOT NULL,
+      message_id VARCHAR(255),
+      feedback   VARCHAR(20) CHECK (feedback IN ('helpful', 'unhelpful')),
+      created_at BIGINT NOT NULL,
+      UNIQUE (tenant_id, message_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_chatbot_feedback_tenant ON public.chatbot_feedback (tenant_id);
+
+    CREATE TABLE IF NOT EXISTS public.chatbot_kb (
+      id         BIGSERIAL PRIMARY KEY,
+      tenant_id  BIGINT,
+      title      VARCHAR(255) NOT NULL,
+      content    TEXT NOT NULL,
+      category   VARCHAR(100) DEFAULT 'General',
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT
+    );
+    CREATE INDEX IF NOT EXISTS idx_chatbot_kb_tenant ON public.chatbot_kb (tenant_id);
+
+    CREATE TABLE IF NOT EXISTS public.support_tickets (
+      id          BIGSERIAL PRIMARY KEY,
+      tenant_id   BIGINT NOT NULL,
+      title       VARCHAR(255),
+      description TEXT,
+      source      VARCHAR(50) DEFAULT 'chatbot',
+      status      VARCHAR(50) DEFAULT 'open',
+      created_at  BIGINT NOT NULL,
+      updated_at  BIGINT
+    );
+    CREATE INDEX IF NOT EXISTS idx_support_tickets_tenant ON public.support_tickets (tenant_id);
+  `)
+
   // Add soft-delete column to the shared guards table
   await pool.query(`
     ALTER TABLE guards ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;

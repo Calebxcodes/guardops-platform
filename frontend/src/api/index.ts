@@ -208,6 +208,30 @@ export const adminUsersApi = {
     api.post('/admin/users/accept-invite', data).then(r => r.data),
 }
 
+export const featureFlagsApi = {
+  get: (): Promise<Record<string, boolean>> =>
+    api.get('/feature-flags').then(r => r.data),
+  toggle: (flag: string, enabled: boolean): Promise<{ success: boolean; flags: Record<string, boolean> }> =>
+    api.patch('/feature-flags', { flag, enabled }).then(r => r.data),
+}
+
+export const chatbotApi = {
+  sendMessage: (message: string, history: { role: string; content: string }[]) =>
+    api.post('/chatbot/message', { message, history }).then(r => r.data),
+  feedback: (messageId: string, feedback: 'helpful' | 'unhelpful') =>
+    api.post('/chatbot/feedback', { messageId, feedback }).then(r => r.data),
+  escalate: (messages: { role: string; content: string }[]) =>
+    api.post('/chatbot/escalate', { messages }).then(r => r.data),
+  getKB: (): Promise<{ success: boolean; items: any[] }> =>
+    api.get('/chatbot/kb').then(r => r.data),
+  updateKB: (id: number, data: { title?: string; content?: string }) =>
+    api.put(`/chatbot/kb/${id}`, data).then(r => r.data),
+  addKB: (data: { title: string; content: string; category?: string }) =>
+    api.post('/chatbot/kb', data).then(r => r.data),
+  deleteKB: (id: number) =>
+    api.delete(`/chatbot/kb/${id}`).then(r => r.data),
+}
+
 export const portalApi = {
   generate:    (client_id: number, label?: string) =>
     api.post('/portal/generate', { client_id, label }).then(r => r.data),

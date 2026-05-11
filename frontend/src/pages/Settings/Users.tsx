@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { adminUsersApi } from '../../api'
 import { useAuthStore, type RoleType } from '../../store/authStore'
 import { canPerform, ROLE_LABELS, ROLES } from '../../utils/permissions'
-import { UserPlus, RotateCcw, Trash2, ChevronDown, Loader, CheckCircle, AlertCircle } from 'lucide-react'
+import { UserPlus, RotateCcw, Trash2, ChevronDown, Loader, CheckCircle, AlertCircle, MessageCircle, Plus, Pencil, X } from 'lucide-react'
+import { chatbotService, type KBItem } from '../../services/chatbotService'
 
 const ROLE_BADGE: Record<string, string> = {
   owner:           'bg-purple-100 text-purple-700',
@@ -36,6 +37,25 @@ export default function SettingsUsers() {
   const [removingId,   setRemovingId]   = useState<number | null>(null)
   const [resendingId,  setResendingId]  = useState<number | null>(null)
   const [roleChanging, setRoleChanging] = useState<number | null>(null)
+
+  // KB editor (owner only)
+  const [kbItems,    setKbItems]    = useState<KBItem[]>([])
+  const [kbLoading,  setKbLoading]  = useState(false)
+  const [kbExpanded, setKbExpanded] = useState(false)
+  const [kbEditing,  setKbEditing]  = useState<number | null>(null)
+  const [kbEditVal,  setKbEditVal]  = useState({ title: '', content: '' })
+  const [kbNewMode,  setKbNewMode]  = useState(false)
+  const [kbNewVal,   setKbNewVal]   = useState({ title: '', content: '', category: '' })
+
+  const loadKb = () => {
+    setKbLoading(true)
+    chatbotService.getKBItems()
+      .then(items => setKbItems(items))
+      .catch(() => {})
+      .finally(() => setKbLoading(false))
+  }
+
+  useEffect(() => { if (role === 'owner' && kbExpanded) loadKb() }, [kbExpanded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = () => {
     setLoading(true)
@@ -189,6 +209,109 @@ export default function SettingsUsers() {
       )}
 
       {/* Users list */}
+      {/* KB editor — owner only */}
+      {role === 'owner' && (
+        <div className="card p-5 space-y-4">
+          <button
+            onClick={() => setKbExpanded(v => !v)}
+            className="w-full flex items-center justify-between"
+          >
+            <h2 className="font-semibold flex items-center gap-2">
+              <MessageCircle size={16} className="text-blue-500" />
+              Chatbot Knowledge Base
+            </h2>
+            <span className="text-xs text-gray-500">{kbExpanded ? 'Collapse' : 'Expand'}</span>
+          </button>
+          {kbExpanded && (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-500">Add custom FAQ items specific to your company. These are added to the global knowledge base.</p>
+              {kbLoading ? (
+                <div className="text-sm text-gray-400 flex items-center gap-2"><Loader size={13} className="animate-spin" /> Loading…</div>
+              ) : kbItems.length === 0 && !kbNewMode ? (
+                <p className="text-sm text-gray-400">No custom KB items yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {kbItems.map(item => (
+                    <div key={item.id} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                      {kbEditing === item.id ? (
+                        <>
+                          <input
+                            className="input text-sm w-full"
+                            value={kbEditVal.title}
+                            onChange={e => setKbEditVal(v => ({ ...v, title: e.target.value }))}
+                            placeholder="Question / title"
+                          />
+                          <textarea
+                            className="input text-sm w-full resize-none"
+                            rows={2}
+                            value={kbEditVal.content}
+                            onChange={e => setKbEditVal(v => ({ ...v, content: e.target.value }))}
+                            placeholder="Answer / content"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              className="btn-primary text-xs px-3 py-1.5"
+                              onClick={async () => {
+                                await chatbotService.updateKBItem(item.id, kbEditVal)
+                                setKbEditing(null)
+                                loadKb()
+                              }}
+                            >Save</button>
+                            <button className="btn text-xs border border-gray-200 px-3 py-1.5" onClick={() => setKbEditing(null)}>Cancel</button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-medium">{item.title}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{item.content}</p>
+                            <span className="text-xs text-blue-500">{item.category}</span>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <button
+                              onClick={() => { setKbEditing(item.id); setKbEditVal({ title: item.title, content: item.content }) }}
+                              className="p-1.5 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                            ><Pencil size={13} /></button>
+                            <button
+                              onClick={async () => { await chatbotService.deleteKBItem(item.id); loadKb() }}
+                              className="p-1.5 text-gray-400 hover:text-red-500 rounded transition-colors"
+                            ><Trash2 size={13} /></button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {kbNewMode ? (
+                <div className="border border-blue-200 rounded-lg p-3 space-y-2 bg-blue-50/30">
+                  <input className="input text-sm w-full" value={kbNewVal.title} onChange={e => setKbNewVal(v => ({ ...v, title: e.target.value }))} placeholder="Question / title" />
+                  <textarea className="input text-sm w-full resize-none" rows={2} value={kbNewVal.content} onChange={e => setKbNewVal(v => ({ ...v, content: e.target.value }))} placeholder="Answer / content" />
+                  <input className="input text-sm w-full" value={kbNewVal.category} onChange={e => setKbNewVal(v => ({ ...v, category: e.target.value }))} placeholder="Category (e.g. Shifts, Payroll)" />
+                  <div className="flex gap-2">
+                    <button
+                      className="btn-primary text-xs px-3 py-1.5"
+                      disabled={!kbNewVal.title.trim() || !kbNewVal.content.trim()}
+                      onClick={async () => {
+                        await chatbotService.addKBItem({ title: kbNewVal.title, content: kbNewVal.content, category: kbNewVal.category || 'Custom' })
+                        setKbNewMode(false)
+                        setKbNewVal({ title: '', content: '', category: '' })
+                        loadKb()
+                      }}
+                    >Add Item</button>
+                    <button className="btn text-xs border border-gray-200 px-3 py-1.5" onClick={() => { setKbNewMode(false); setKbNewVal({ title: '', content: '', category: '' }) }}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setKbNewMode(true)} className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 transition-colors">
+                  <Plus size={14} /> Add KB Item
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="card p-8 text-center text-gray-400 text-sm">Loading...</div>
       ) : error ? (

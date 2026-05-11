@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore'
 import { useTenantStore } from './store/tenantStore'
 import { getSubdomainSlug } from './utils/tenantDetection'
 import CookieConsent from './components/CookieConsent'
+import Chatbot from './components/Chatbot'
 
 // Eagerly load Layout — it's the app shell, needed immediately after login
 import Layout from './components/Layout'
@@ -110,6 +111,7 @@ export default function App() {
     <BrowserRouter>
       <TenantGuard>
       <CookieConsent />
+      <Chatbot />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public routes */}
