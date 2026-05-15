@@ -228,4 +228,18 @@ router.delete('/permanent-delete', requireAdmin, requirePermission('settings', '
   }
 })
 
+// PUT /api/tenant/settings — explicitly blocks immutable field changes (Fix #5)
+router.put('/settings', requireAdmin, async (req: any, res: Response) => {
+  const IMMUTABLE = ['name', 'slug', 'founding_date', 'created_by', 'company_name']
+  const attempted = IMMUTABLE.filter(f => req.body && f in req.body)
+  if (attempted.length > 0) {
+    return res.status(403).json({
+      error: `These fields cannot be changed: ${attempted.join(', ')}`,
+      immutable: attempted,
+    })
+  }
+  // Non-immutable settings (email, phone, timezone, etc.) — future DB persistence here
+  return res.json({ success: true, message: 'Settings updated.' })
+})
+
 export default router

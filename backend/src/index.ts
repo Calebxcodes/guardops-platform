@@ -48,6 +48,7 @@ import featureFlagsRouter from './routes/featureFlags'
 import tenantAccountRouter from './routes/tenantAccount'
 import adminUsersRouter from './routes/adminUsers'
 import chatbotRouter from './routes/chatbot'
+import permissionsRouter from './routes/permissions'
 import { runBillingCron } from './services/billingCron'
 import { runRenewalCron } from './services/renewalCron'
 
@@ -255,6 +256,9 @@ app.use('/api/admin/users', adminUsersRouter)
 
 // ── Chatbot (AI assistant — per-tenant feature flag) ──────────────────────
 app.use('/api/chatbot', requireAdmin, chatbotRouter)
+
+// ── Permissions foundation (Phase 2 — dormant, not in auth flow yet) ──────
+app.use('/api/permissions', permissionsRouter)
 
 // ── Master admin panel ────────────────────────────────────────────────────
 app.use('/api/master-admin', masterAdminAuthRouter)

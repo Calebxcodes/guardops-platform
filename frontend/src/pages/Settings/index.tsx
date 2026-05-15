@@ -504,7 +504,7 @@ export default function Settings() {
             </button>
             <div className="flex items-center gap-3">
               {anyDirty && <span className="text-xs text-red-500"><span>*</span> Unsaved changes</span>}
-              <button onClick={handleSave} className="btn-primary">
+              <button onClick={handleSave} disabled={!anyDirty} className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed">
                 {saved ? '✓ Saved' : 'Save Settings'}
               </button>
             </div>
