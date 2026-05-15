@@ -114,7 +114,11 @@ export default function Login() {
         setError('')
       } else {
         setAuth(result.token, result.admin)
-        navigate('/', { replace: true })
+        if (result.slug && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+          window.location.href = `https://${result.slug}.strondis.com/`
+        } else {
+          navigate('/', { replace: true })
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed. Please check your credentials.')
@@ -129,9 +133,13 @@ export default function Login() {
     setError('')
     setTwoFaLoading(true)
     try {
-      const { token, admin } = await adminAuthApi.twoFaValidate(partialToken, twoFaCode)
-      setAuth(token, admin)
-      navigate('/', { replace: true })
+      const result = await adminAuthApi.twoFaValidate(partialToken, twoFaCode)
+      setAuth(result.token, result.admin)
+      if (result.slug && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        window.location.href = `https://${result.slug}.strondis.com/`
+      } else {
+        navigate('/', { replace: true })
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Invalid code. Please try again.')
       setTwoFaCode('')

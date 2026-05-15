@@ -35,6 +35,10 @@ const nav = [
 // Bottom nav shows only the most used items on mobile
 const mobileNav = nav.slice(0, 5)
 
+function getInitials(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
+}
+
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -96,7 +100,9 @@ export default function Layout() {
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-4 h-16 border-b border-gray-800 shrink-0">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
-            <Shield size={16} className="text-white" />
+            {tenant?.name
+              ? <span className="text-white text-xs font-bold leading-none">{getInitials(tenant.name)}</span>
+              : <Shield size={16} className="text-white" />}
           </div>
           {sidebarOpen && (
             <div className="min-w-0 flex-1">
@@ -183,10 +189,12 @@ export default function Layout() {
             <div className="flex items-center justify-between px-5 h-16 border-b border-gray-800 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Shield size={16} className="text-white" />
+                  {tenant?.name
+                    ? <span className="text-white text-xs font-bold leading-none">{getInitials(tenant.name)}</span>
+                    : <Shield size={16} className="text-white" />}
                 </div>
                 <div>
-                  <div className="font-bold text-sm text-white">Strondis Ops</div>
+                  <div className="font-bold text-sm text-white">{tenant?.name || 'Strondis Ops'}</div>
                   <div className="text-gray-500 text-xs">Operations Platform</div>
                 </div>
               </div>
@@ -259,9 +267,11 @@ export default function Layout() {
           </button>
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Shield size={14} className="text-white" />
+              {tenant?.name
+                ? <span className="text-white text-[10px] font-bold leading-none">{getInitials(tenant.name)}</span>
+                : <Shield size={14} className="text-white" />}
             </div>
-            <span className="font-bold text-sm text-gray-900">Strondis Ops</span>
+            <span className="font-bold text-sm text-gray-900">{tenant?.name || 'Strondis Ops'}</span>
           </div>
           <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded-lg">
             <LogOut size={18} />

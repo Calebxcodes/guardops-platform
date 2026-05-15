@@ -112,7 +112,7 @@ export const adminAuthApi = {
     const base = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
     window.location.href = `${base}/admin/auth/${provider}`
   },
-  twoFaValidate: (partial_token: string, code: string): Promise<{ token: string; admin: any }> =>
+  twoFaValidate: (partial_token: string, code: string): Promise<{ token: string; slug: string | null; admin: any }> =>
     api.post('/admin/auth/2fa/validate', { partial_token, code }).then(r => r.data),
   twoFaStatus: (): Promise<{ enabled: boolean }> =>
     api.get('/admin/auth/2fa/status').then(r => r.data),

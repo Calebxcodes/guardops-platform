@@ -519,6 +519,40 @@ export async function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_support_tickets_tenant ON public.support_tickets (tenant_id);
   `)
 
+  // Permission foundation tables (Phase 2 — dormant, not yet activated in routes)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.permission_consents (
+      id          BIGSERIAL PRIMARY KEY,
+      tenant_id   BIGINT NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+      admin_id    BIGINT NOT NULL,
+      feature     VARCHAR(100) NOT NULL,
+      action      VARCHAR(100) NOT NULL,
+      granted     BOOLEAN DEFAULT FALSE,
+      granted_at  BIGINT,
+      revoked_at  BIGINT,
+      created_at  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
+      UNIQUE (tenant_id, admin_id, feature, action)
+    );
+    CREATE INDEX IF NOT EXISTS idx_permission_consents_tenant ON public.permission_consents (tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_permission_consents_admin  ON public.permission_consents (admin_id);
+
+    CREATE TABLE IF NOT EXISTS public.permission_requests (
+      id           BIGSERIAL PRIMARY KEY,
+      tenant_id    BIGINT NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+      requester_id BIGINT NOT NULL,
+      feature      VARCHAR(100) NOT NULL,
+      action       VARCHAR(100) NOT NULL,
+      status       VARCHAR(50) DEFAULT 'pending',
+      reason       TEXT,
+      reviewed_by  BIGINT,
+      reviewed_at  BIGINT,
+      created_at   BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())
+    );
+    CREATE INDEX IF NOT EXISTS idx_permission_requests_tenant    ON public.permission_requests (tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_permission_requests_requester ON public.permission_requests (requester_id);
+    CREATE INDEX IF NOT EXISTS idx_permission_requests_status    ON public.permission_requests (status);
+  `)
+
   // Add soft-delete column to the shared guards table
   await pool.query(`
     ALTER TABLE guards ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;

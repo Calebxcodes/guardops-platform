@@ -129,6 +129,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
   let admin: any = null
   let tenantId: number | null = null
+  let slug: string | null = null
 
   // Step 1: check public.admin_users (original single-tenant / direct-install admin)
   const { rows: publicRows } = await pool.query('SELECT * FROM public.admin_users WHERE email = $1', [email])
@@ -137,11 +138,12 @@ router.post('/login', async (req: Request, res: Response) => {
   } else {
     // Step 2: find which tenant owns this email (owner email stored at signup)
     const { rows: tenantRows } = await pool.query(
-      "SELECT id FROM public.tenants WHERE email = $1 AND status NOT IN ('cancelled')",
+      "SELECT id, slug FROM public.tenants WHERE email = $1 AND status NOT IN ('cancelled')",
       [email]
     )
     if (tenantRows[0]) {
       tenantId = tenantRows[0].id as number
+      slug = tenantRows[0].slug as string
       const { rows: adminRows } = await pool.query(
         `SELECT * FROM tenant_${tenantId}.admin_users WHERE email = $1`,
         [email]
@@ -166,7 +168,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
   auditLog({ user_type: 'admin', user_id: admin.id, action: 'login', ip_address: req.ip })
   const token = signAdminToken(admin.id, admin.email, tenantId, admin.role || 'owner')
-  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role || 'owner', tenantId } })
+  res.json({ token, slug, admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role || 'owner', tenantId } })
 })
 
 router.get('/me', requireAdmin, async (req: any, res: Response) => {
@@ -252,8 +254,13 @@ router.post('/2fa/validate', async (req: Request, res: Response) => {
   }
 
   auditLog({ user_type: 'admin', user_id: admin.id, action: 'login', ip_address: req.ip })
+  let twoFaSlug: string | null = null
+  if (payload.tenantId) {
+    const { rows: slugRows } = await pool.query('SELECT slug FROM public.tenants WHERE id = $1', [payload.tenantId])
+    if (slugRows[0]) twoFaSlug = slugRows[0].slug
+  }
   const token = signAdminToken(admin.id, admin.email, payload.tenantId ?? null, admin.role || 'owner')
-  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role || 'owner', tenantId: payload.tenantId ?? null } })
+  res.json({ token, slug: twoFaSlug, admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role || 'owner', tenantId: payload.tenantId ?? null } })
 })
 
 // ── 2FA — management (requires full admin auth) ───────────────────────────────
