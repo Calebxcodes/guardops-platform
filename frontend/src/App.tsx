@@ -88,7 +88,7 @@ function TenantGuard({ children }: { children: React.ReactNode }) {
       .then(data => {
         setTenant({ id: Number(data.id), name: data.name, slug: data.slug })
         // Q4: If stored JWT belongs to a different tenant, force re-login
-        if (token && admin?.tenantId && admin.tenantId !== Number(data.id)) {
+        if (token && admin?.tenantId && Number(admin.tenantId) !== Number(data.id)) {
           logout()
         }
         setStatus('ready')

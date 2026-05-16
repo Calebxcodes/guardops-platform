@@ -142,7 +142,7 @@ router.post('/login', async (req: Request, res: Response) => {
       [email]
     )
     if (tenantRows[0]) {
-      tenantId = tenantRows[0].id as number
+      tenantId = Number(tenantRows[0].id)
       slug = tenantRows[0].slug as string
       const { rows: adminRows } = await pool.query(
         `SELECT * FROM tenant_${tenantId}.admin_users WHERE email = $1`,
