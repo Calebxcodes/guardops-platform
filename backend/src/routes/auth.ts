@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
-import { query, auditLog } from '../db/schema'
-import { pool } from '../db/pool'
+import { auditLog } from '../db/schema'
+import { pool, query } from '../db/pool'
 import { signToken, requireAuth, AuthRequest } from '../middleware/auth'
 import { sendPasswordReset } from '../services/email'
 
