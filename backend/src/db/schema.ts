@@ -519,6 +519,20 @@ export async function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_support_tickets_tenant ON public.support_tickets (tenant_id);
   `)
 
+  // Guard links bridge table — maps guard email to tenant for cross-schema login
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.guard_links (
+      id          BIGSERIAL PRIMARY KEY,
+      guard_email VARCHAR(255) NOT NULL,
+      tenant_id   BIGINT NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+      guard_id    INTEGER NOT NULL,
+      created_at  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()),
+      UNIQUE (guard_email, tenant_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_guard_links_email  ON public.guard_links (guard_email);
+    CREATE INDEX IF NOT EXISTS idx_guard_links_tenant ON public.guard_links (tenant_id);
+  `)
+
   // Permission foundation tables (Phase 2 — dormant, not yet activated in routes)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.permission_consents (
@@ -593,6 +607,50 @@ export async function initSchema() {
           allowed    INTEGER DEFAULT 1,
           created_at TIMESTAMPTZ DEFAULT NOW()
         );
+      `)
+    }
+  } catch {
+    // public.tenants may not exist yet on a fresh database — safe to skip
+  }
+
+  // ── HR time-off tables (Upgrade #37) ─────────────────────────────────────────
+  try {
+    const { rows: tenants } = await pool.query(
+      `SELECT id FROM public.tenants WHERE status != 'deleted'`
+    )
+    for (const t of tenants) {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS tenant_${t.id}.time_off_types (
+          id                SERIAL PRIMARY KEY,
+          name              TEXT NOT NULL,
+          paid              INTEGER DEFAULT 1,
+          max_days_per_year INTEGER,
+          requires_approval INTEGER DEFAULT 1,
+          active            INTEGER DEFAULT 1,
+          created_at        TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS tenant_${t.id}.time_off_requests (
+          id          SERIAL PRIMARY KEY,
+          guard_id    INTEGER REFERENCES tenant_${t.id}.guards(id),
+          type_id     INTEGER REFERENCES tenant_${t.id}.time_off_types(id),
+          start_date  DATE NOT NULL,
+          end_date    DATE NOT NULL,
+          days        REAL NOT NULL DEFAULT 1,
+          reason      TEXT,
+          status      TEXT DEFAULT 'pending',
+          reviewed_by INTEGER REFERENCES tenant_${t.id}.admin_users(id),
+          review_note TEXT,
+          reviewed_at TIMESTAMPTZ,
+          created_at  TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_tor_guard_${t.id}  ON tenant_${t.id}.time_off_requests (guard_id);
+        CREATE INDEX IF NOT EXISTS idx_tor_status_${t.id} ON tenant_${t.id}.time_off_requests (status);
+      `)
+      await pool.query(`
+        INSERT INTO tenant_${t.id}.time_off_types (name, paid, requires_approval)
+        SELECT name, paid, 1
+        FROM (VALUES ('Annual Leave', 1), ('Sick Leave', 1), ('Personal Leave', 1), ('Unpaid Leave', 0)) AS d(name, paid)
+        WHERE NOT EXISTS (SELECT 1 FROM tenant_${t.id}.time_off_types)
       `)
     }
   } catch {

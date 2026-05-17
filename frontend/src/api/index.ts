@@ -215,6 +215,18 @@ export const featureFlagsApi = {
     api.patch('/feature-flags', { flag, enabled }).then(r => r.data),
 }
 
+export const timeOffApi = {
+  requests:     (params?: { status?: string; guard_id?: number }) =>
+    api.get('/time-off/admin/requests', { params }).then(r => r.data),
+  pendingCount: (): Promise<{ count: number }> =>
+    api.get('/time-off/admin/pending-count').then(r => r.data),
+  types:        () => api.get('/time-off/admin/types').then(r => r.data),
+  approve:      (id: number, note?: string) =>
+    api.put(`/time-off/admin/requests/${id}/approve`, { note }).then(r => r.data),
+  reject:       (id: number, note?: string) =>
+    api.put(`/time-off/admin/requests/${id}/reject`, { note }).then(r => r.data),
+}
+
 export const chatbotApi = {
   sendMessage: (message: string, history: { role: string; content: string }[]) =>
     api.post('/chatbot/message', { message, history }).then(r => r.data),

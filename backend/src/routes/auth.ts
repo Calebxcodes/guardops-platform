@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { query, auditLog } from '../db/schema'
+import { pool } from '../db/pool'
 import { signToken, requireAuth, AuthRequest } from '../middleware/auth'
 import { sendPasswordReset } from '../services/email'
 
@@ -11,14 +12,39 @@ router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' })
 
-  const { rows: guardRows } = await query(
-    'SELECT * FROM guards WHERE email = $1 AND active = 1 AND deleted_at IS NULL',
+  // Try tenant-aware login via guard_links bridge table
+  const { rows: linkRows } = await pool.query(
+    'SELECT tenant_id, guard_id FROM public.guard_links WHERE guard_email = $1 LIMIT 1',
     [email]
   )
-  const guard = guardRows[0]
+
+  let guard: any
+  let tenantId: number | undefined
+
+  if (linkRows[0]) {
+    tenantId = Number(linkRows[0].tenant_id)
+    const { rows } = await query(
+      'SELECT * FROM guards WHERE id = $1 AND active = 1 AND deleted_at IS NULL',
+      [linkRows[0].guard_id],
+      tenantId
+    )
+    guard = rows[0]
+  } else {
+    // Fallback: public schema (legacy / seed guards without a tenant link)
+    const { rows } = await query(
+      'SELECT * FROM guards WHERE email = $1 AND active = 1 AND deleted_at IS NULL',
+      [email]
+    )
+    guard = rows[0]
+  }
+
   if (!guard) return res.status(401).json({ error: 'Invalid email or password' })
 
-  const { rows: authRows } = await query('SELECT * FROM guard_auth WHERE guard_id = $1', [guard.id])
+  const { rows: authRows } = await query(
+    'SELECT * FROM guard_auth WHERE guard_id = $1',
+    [guard.id],
+    tenantId
+  )
   const auth = authRows[0]
   if (!auth) return res.status(401).json({ error: 'Account not set up. Contact your manager.' })
 
@@ -29,7 +55,7 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 
   auditLog({ user_type: 'guard', user_id: guard.id, action: 'login', ip_address: req.ip })
-  const token = signToken(guard.id, guard.email)
+  const token = signToken(guard.id, guard.email, tenantId)
   res.json({
     token,
     guard: {

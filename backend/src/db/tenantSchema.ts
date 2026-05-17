@@ -298,6 +298,40 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
         key    TEXT NOT NULL,
         hit_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      CREATE TABLE IF NOT EXISTS time_off_types (
+        id                SERIAL PRIMARY KEY,
+        name              TEXT NOT NULL,
+        paid              INTEGER DEFAULT 1,
+        max_days_per_year INTEGER,
+        requires_approval INTEGER DEFAULT 1,
+        active            INTEGER DEFAULT 1,
+        created_at        TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS time_off_requests (
+        id          SERIAL PRIMARY KEY,
+        guard_id    INTEGER REFERENCES guards(id),
+        type_id     INTEGER REFERENCES time_off_types(id),
+        start_date  DATE NOT NULL,
+        end_date    DATE NOT NULL,
+        days        REAL NOT NULL DEFAULT 1,
+        reason      TEXT,
+        status      TEXT DEFAULT 'pending',
+        reviewed_by INTEGER REFERENCES admin_users(id),
+        review_note TEXT,
+        reviewed_at TIMESTAMPTZ,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_time_off_requests_guard  ON time_off_requests (guard_id);
+      CREATE INDEX IF NOT EXISTS idx_time_off_requests_status ON time_off_requests (status);
+    `)
+
+    await client.query(`
+      INSERT INTO time_off_types (name, paid, requires_approval)
+      SELECT name, paid, 1
+      FROM (VALUES ('Annual Leave', 1), ('Sick Leave', 1), ('Personal Leave', 1), ('Unpaid Leave', 0)) AS d(name, paid)
+      WHERE NOT EXISTS (SELECT 1 FROM time_off_types)
     `)
 
     await client.query(`SET search_path TO public`)

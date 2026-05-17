@@ -49,6 +49,7 @@ import tenantAccountRouter from './routes/tenantAccount'
 import adminUsersRouter from './routes/adminUsers'
 import chatbotRouter from './routes/chatbot'
 import permissionsRouter from './routes/permissions'
+import timeOffRouter from './routes/timeOff'
 import { runBillingCron } from './services/billingCron'
 import { runRenewalCron } from './services/renewalCron'
 
@@ -259,6 +260,10 @@ app.use('/api/chatbot', requireAdmin, chatbotRouter)
 
 // ── Permissions foundation (Phase 2 — dormant, not in auth flow yet) ──────
 app.use('/api/permissions', permissionsRouter)
+
+// ── HR: time-off (guard-facing + admin-facing) ────────────────────────────
+app.use('/api/guard/time-off', timeOffRouter)
+app.use('/api/time-off', timeOffRouter)
 
 // ── Master admin panel ────────────────────────────────────────────────────
 app.use('/api/master-admin', masterAdminAuthRouter)

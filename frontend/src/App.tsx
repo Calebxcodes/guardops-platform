@@ -33,6 +33,7 @@ const Documents       = lazy(() => import('./pages/Documents'))
 const Notifications   = lazy(() => import('./pages/Notifications'))
 const AcceptInvite    = lazy(() => import('./pages/AcceptInvite'))
 const SettingsUsers   = lazy(() => import('./pages/Settings/Users'))
+const HR              = lazy(() => import('./pages/HR'))
 
 // Full-screen spinner shown while a lazy chunk is loading
 function PageLoader() {
@@ -138,6 +139,7 @@ export default function App() {
             <Route path="messages"        element={<Messages />} />
             <Route path="documents"       element={<Documents />} />
             <Route path="notifications"   element={<Notifications />} />
+            <Route path="hr"              element={<HR />} />
             <Route path="settings"        element={<Settings />} />
             <Route path="settings/users"  element={<SettingsUsers />} />
           </Route>

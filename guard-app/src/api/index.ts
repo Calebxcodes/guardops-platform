@@ -97,6 +97,13 @@ export const documentsApi = {
   },
 }
 
+export const timeOffApi = {
+  types: () => api.get('/guard/time-off/types').then(r => r.data),
+  myRequests: () => api.get('/guard/time-off/requests').then(r => r.data),
+  submit: (data: { type_id: number; start_date: string; end_date: string; reason?: string }) =>
+    api.post('/guard/time-off/requests', data).then(r => r.data),
+}
+
 export const profileApi = {
   get: () => api.get('/guard/profile').then(r => r.data),
   update: (data: any) => api.put('/guard/profile', data).then(r => r.data),

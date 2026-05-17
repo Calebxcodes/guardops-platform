@@ -79,6 +79,7 @@ export const NAV_ACCESS: Record<string, RoleType[]> = {
   '/analytics':     ['owner', 'manager', 'payroll_manager', 'viewer'],
   '/incidents':     ['owner', 'manager', 'scheduler', 'viewer'],
   '/compliance':    ['owner', 'manager', 'viewer'],
+  '/hr':            ['owner', 'manager'],
   '/portal':        ['owner', 'manager', 'viewer'],
   '/messages':      ['owner', 'manager'],
   '/notifications': ['owner', 'manager'],

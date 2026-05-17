@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import * as Sentry from '@sentry/node'
-import { query } from '../db/pool'
+import { query, pool } from '../db/pool'
 import { requirePermission } from '../middleware/rbac'
 
 const router = Router()
@@ -106,6 +106,17 @@ router.post('/', requirePermission('guards', 'create'), async (req: Request, res
       tid(req)
     )
     const guard = rows[0]
+
+    // Link guard email → tenant for cross-schema login
+    if (email) {
+      await pool.query(
+        `INSERT INTO public.guard_links (guard_email, tenant_id, guard_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (guard_email, tenant_id) DO UPDATE SET guard_id = EXCLUDED.guard_id`,
+        [email, tid(req), guard.id]
+      )
+    }
+
     res.status(201).json({
       ...guard,
       certifications: JSON.parse(guard.certifications),
@@ -149,6 +160,17 @@ router.put('/:id', requirePermission('guards', 'update'), async (req: Request, r
     )
     const guard = rows[0]
     if (!guard) return res.status(404).json({ error: 'Guard not found' })
+
+    // Keep guard_links in sync if email changed
+    if (email) {
+      await pool.query(
+        `INSERT INTO public.guard_links (guard_email, tenant_id, guard_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (guard_email, tenant_id) DO UPDATE SET guard_id = EXCLUDED.guard_id`,
+        [email, tid(req), guard.id]
+      )
+    }
+
     res.json({
       ...guard,
       certifications: JSON.parse(guard.certifications),
@@ -202,7 +224,16 @@ router.delete('/:id', requirePermission('guards', 'delete'), async (req: Request
       tid(req)
     )
 
-    // 4. Audit log
+    // 4. Remove guard_links entry so deleted guard cannot log in
+    const { rows: emailRows } = await query('SELECT email FROM guards WHERE id = $1', [guardId], tid(req))
+    if (emailRows[0]?.email) {
+      await pool.query(
+        'DELETE FROM public.guard_links WHERE guard_email = $1 AND tenant_id = $2',
+        [emailRows[0].email, tid(req)]
+      )
+    }
+
+    // 5. Audit log
     await query(
       `INSERT INTO audit_log
          (user_type, user_id, action, resource_type, resource_id, ip_address)
@@ -280,6 +311,17 @@ router.post('/:id/restore', async (req: Request, res: Response) => {
       [guardId],
       tid(req)
     )
+
+    // Re-create guard_links entry so guard can log in again
+    const { rows: emailRows } = await query('SELECT email FROM guards WHERE id = $1', [guardId], tid(req))
+    if (emailRows[0]?.email) {
+      await pool.query(
+        `INSERT INTO public.guard_links (guard_email, tenant_id, guard_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (guard_email, tenant_id) DO UPDATE SET guard_id = EXCLUDED.guard_id`,
+        [emailRows[0].email, tid(req), guardId]
+      )
+    }
 
     await query(
       `INSERT INTO audit_log

@@ -14,6 +14,7 @@ const Dashboard      = lazy(() => import('./pages/Dashboard'))
 const Schedule       = lazy(() => import('./pages/Schedule'))
 const Timesheet      = lazy(() => import('./pages/Timesheet'))
 const MapPage        = lazy(() => import('./pages/Map'))
+const TimeOff        = lazy(() => import('./pages/TimeOff'))
 const Messages       = lazy(() => import('./pages/Messages'))
 const Incidents      = lazy(() => import('./pages/Incidents'))
 const Profile        = lazy(() => import('./pages/Profile'))
@@ -80,6 +81,7 @@ export default function App() {
             <Route path="schedule"       element={<Schedule />} />
             <Route path="timesheet"      element={<Timesheet />} />
             <Route path="map"            element={<MapPage />} />
+            <Route path="time-off"       element={<TimeOff />} />
             <Route path="messages"       element={<Messages />} />
             <Route path="incidents"      element={<Incidents />} />
             <Route path="documents"      element={<DocumentsPage />} />

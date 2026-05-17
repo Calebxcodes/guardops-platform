@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, MapPin, Calendar, ClipboardList,
   DollarSign, BarChart2, AlertTriangle, Settings, Shield,
-  ShieldCheck, ExternalLink, MessageSquare, LogOut, Menu, X, FolderOpen, LineChart, Bell, UserCog
+  ShieldCheck, ExternalLink, MessageSquare, LogOut, Menu, X, FolderOpen, LineChart, Bell, UserCog, Briefcase
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
@@ -11,7 +11,7 @@ import { useTenantStore } from '../store/tenantStore'
 import { useInactivityTimer } from '../hooks/useInactivityTimer'
 import { canAccessNav, ROLE_LABELS, type RoleType } from '../utils/permissions'
 import SessionTimeoutModal from './SessionTimeoutModal'
-import { messagesApi } from '../api'
+import { messagesApi, timeOffApi } from '../api'
 
 const nav = [
   { to: '/',           label: 'Dashboard',      icon: LayoutDashboard, end: true },
@@ -24,6 +24,7 @@ const nav = [
   { to: '/analytics',  label: 'Analytics',       icon: LineChart },
   { to: '/incidents',  label: 'Incidents',       icon: AlertTriangle },
   { to: '/compliance', label: 'SIA Compliance',  icon: ShieldCheck },
+  { to: '/hr',         label: 'HR',              icon: Briefcase },
   { to: '/portal',     label: 'Client Portal',   icon: ExternalLink },
   { to: '/messages',       label: 'Messages',        icon: MessageSquare },
   { to: '/notifications',  label: 'Notifications',   icon: Bell },
@@ -43,6 +44,7 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [unreadMessages, setUnreadMessages] = useState(0)
+  const [pendingHR, setPendingHR] = useState(0)
   const { admin, logout } = useAuthStore()
   const tenant = useTenantStore(s => s.tenant)
   const navigate = useNavigate()
@@ -62,6 +64,15 @@ export default function Layout() {
         .catch(() => {})
     fetchUnread()
     const iv = setInterval(fetchUnread, 30000)
+    return () => clearInterval(iv)
+  }, [])
+
+  // Poll for pending HR requests every 60s
+  useEffect(() => {
+    const fetchHR = () =>
+      timeOffApi.pendingCount().then(d => setPendingHR(d.count)).catch(() => {})
+    fetchHR()
+    const iv = setInterval(fetchHR, 60000)
     return () => clearInterval(iv)
   }, [])
 
@@ -137,11 +148,21 @@ export default function Layout() {
                     {unreadMessages > 9 ? '9+' : unreadMessages}
                   </span>
                 )}
+                {to === '/hr' && pendingHR > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {pendingHR > 9 ? '9+' : pendingHR}
+                  </span>
+                )}
               </div>
               {sidebarOpen && <span className="truncate">{label}</span>}
               {sidebarOpen && to === '/messages' && unreadMessages > 0 && (
                 <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-none">
                   {unreadMessages}
+                </span>
+              )}
+              {sidebarOpen && to === '/hr' && pendingHR > 0 && (
+                <span className="ml-auto bg-amber-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-none">
+                  {pendingHR}
                 </span>
               )}
             </NavLink>

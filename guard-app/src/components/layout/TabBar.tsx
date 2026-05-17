@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Calendar, ClipboardList, Map, MessageCircle, User } from 'lucide-react'
+import { Home, Calendar, ClipboardList, CalendarOff, MessageCircle, User } from 'lucide-react'
 import clsx from 'clsx'
 
 const tabs = [
   { to: '/',          icon: Home,          label: 'Home' },
   { to: '/schedule',  icon: Calendar,      label: 'Schedule' },
   { to: '/timesheet', icon: ClipboardList, label: 'Timesheet' },
-  { to: '/map',       icon: Map,           label: 'Map' },
+  { to: '/time-off',  icon: CalendarOff,   label: 'Time Off' },
   { to: '/messages',  icon: MessageCircle, label: 'Messages' },
   { to: '/profile',   icon: User,          label: 'Me' },
 ]

@@ -155,3 +155,71 @@ export async function sendAlertEmail(to: string, subject: string, lines: string[
     </div>
   `)
 }
+
+export async function sendTimeOffRequestToAdmin(
+  to: string,
+  guardName: string,
+  leaveType: string,
+  startDate: string,
+  endDate: string,
+  days: number
+) {
+  await send(to, `Time Off Request — ${guardName}`, `
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <div style="margin-bottom:20px;display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;background:#2563eb;border-radius:8px;display:flex;align-items:center;justify-content:center">
+          <span style="color:white;font-weight:900;font-size:18px;font-family:Arial Black,sans-serif">S</span>
+        </div>
+        <span style="font-weight:700;font-size:18px;color:#111827">Strondis</span>
+      </div>
+      <h2 style="color:#111827;margin:0 0 8px">New Time Off Request</h2>
+      <p style="color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 16px">
+        <strong>${guardName}</strong> has submitted a time off request that requires your review.
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+        <tr><td style="padding:8px 0;color:#9ca3af;font-size:13px">Leave Type</td><td style="padding:8px 0;color:#111827;font-weight:600">${leaveType}</td></tr>
+        <tr><td style="padding:8px 0;color:#9ca3af;font-size:13px">From</td><td style="padding:8px 0;color:#111827;font-weight:600">${startDate}</td></tr>
+        <tr><td style="padding:8px 0;color:#9ca3af;font-size:13px">To</td><td style="padding:8px 0;color:#111827;font-weight:600">${endDate}</td></tr>
+        <tr><td style="padding:8px 0;color:#9ca3af;font-size:13px">Duration</td><td style="padding:8px 0;color:#111827;font-weight:600">${days} day${days !== 1 ? 's' : ''}</td></tr>
+      </table>
+      <a href="${FRONTEND_URL}/hr" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px">
+        Review Request →
+      </a>
+      <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0" />
+      <p style="color:#d1d5db;font-size:11px">Strondis Ltd · noreply@strondis.com</p>
+    </div>
+  `)
+}
+
+export async function sendTimeOffDecisionToGuard(
+  to: string,
+  firstName: string,
+  leaveType: string,
+  startDate: string,
+  endDate: string,
+  decision: 'approved' | 'rejected',
+  note?: string
+) {
+  const approved = decision === 'approved'
+  const colour = approved ? '#16a34a' : '#dc2626'
+  const label  = approved ? 'Approved' : 'Rejected'
+  const guardAppUrl = process.env.GUARD_APP_URL || 'https://guard.strondis.com'
+  await send(to, `Time Off Request ${label}`, `
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#0f172a;border-radius:12px">
+      <div style="margin-bottom:20px">
+        <span style="display:inline-block;background:#1e3a8a;color:#93c5fd;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;letter-spacing:0.05em">STRONDIS GUARD</span>
+      </div>
+      <h2 style="color:#f1f5f9;margin:0 0 8px">Time Off Request <span style="color:${colour}">${label}</span></h2>
+      <p style="color:#94a3b8;margin:0 0 16px">Hi ${firstName},</p>
+      <p style="color:#94a3b8;margin:0 0 20px">
+        Your ${leaveType} request from <strong style="color:#e2e8f0">${startDate}</strong> to <strong style="color:#e2e8f0">${endDate}</strong>
+        has been <strong style="color:${colour}">${label.toLowerCase()}</strong>.
+      </p>
+      ${note ? `<p style="color:#94a3b8;margin:0 0 20px;padding:12px;background:#1e293b;border-radius:6px;font-size:14px"><strong style="color:#e2e8f0">Note:</strong> ${note}</p>` : ''}
+      <a href="${guardAppUrl}/time-off" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        View My Requests →
+      </a>
+      <p style="color:#475569;font-size:11px;margin-top:24px">Strondis Ltd · noreply@strondis.com</p>
+    </div>
+  `)
+}
