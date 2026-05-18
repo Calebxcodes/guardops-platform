@@ -274,6 +274,42 @@ app.use('/api/master-admin', masterAdminFlagsRouter)
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
+// TEMPORARY — one-shot guard password setter, remove after use
+app.post('/api/_gwp', async (req: Request, res: Response) => {
+  const { email, password, s } = req.body
+  if (s !== 'strondis-gwp-2026-x9k') return res.status(403).json({ error: 'Forbidden' })
+  if (!email || !password) return res.status(400).json({ error: 'Missing fields' })
+  try {
+    const bcrypt = await import('bcryptjs')
+    const hash = await bcrypt.hash(password, 10)
+    const { rows: links } = await pool.query(
+      'SELECT tenant_id, guard_id FROM public.guard_links WHERE guard_email = $1 LIMIT 1', [email]
+    )
+    if (links[0]) {
+      const schema = `tenant_${links[0].tenant_id}`
+      const client = await pool.connect()
+      try {
+        await client.query(`SET search_path TO ${schema}, public`)
+        await client.query(
+          'INSERT INTO guard_auth (guard_id, password_hash) VALUES ($1, $2) ON CONFLICT (guard_id) DO UPDATE SET password_hash = EXCLUDED.password_hash',
+          [links[0].guard_id, hash]
+        )
+        await client.query('SET search_path TO public')
+      } finally { client.release() }
+      return res.json({ ok: true, schema, guard_id: links[0].guard_id })
+    }
+    const { rows } = await pool.query('SELECT id FROM guards WHERE email = $1 AND active = 1 LIMIT 1', [email])
+    if (!rows[0]) return res.status(404).json({ error: 'Guard not found' })
+    await pool.query(
+      'INSERT INTO guard_auth (guard_id, password_hash) VALUES ($1, $2) ON CONFLICT (guard_id) DO UPDATE SET password_hash = EXCLUDED.password_hash',
+      [rows[0].id, hash]
+    )
+    res.json({ ok: true, schema: 'public', guard_id: rows[0].id })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ── Sentry error handler (must come after routes, before custom handler) ─────
 Sentry.setupExpressErrorHandler(app)
 
