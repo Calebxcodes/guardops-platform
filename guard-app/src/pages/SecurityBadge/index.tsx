@@ -19,6 +19,7 @@ interface CurrentBadge {
   badge_number: string | null
   card_type: string | null
   photo_url: string | null
+  is_current: number
   status: string
   created_at: string
 }
