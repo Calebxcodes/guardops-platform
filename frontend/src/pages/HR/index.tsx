@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Briefcase, Clock, CheckCircle, XCircle, Calendar, ChevronDown,
-  Search, SlidersHorizontal, X
+  Search, SlidersHorizontal, X, ShieldCheck
 } from 'lucide-react'
 import { timeOffApi } from '../../api'
+import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 
 interface TimeOffRequest {
@@ -208,6 +209,7 @@ function RequestCard({
 }
 
 export default function HR() {
+  const navigate = useNavigate()
   const [requests, setRequests] = useState<TimeOffRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('pending')
@@ -264,19 +266,29 @@ export default function HR() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-brand-600/20 rounded-xl flex items-center justify-center">
             <Briefcase size={20} className="text-brand-400" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-white">HR — Time Off</h1>
+            <h1 className="text-xl font-semibold text-white">HR</h1>
             <p className="text-white/40 text-sm">
-              {pendingCount > 0 ? `${pendingCount} request${pendingCount !== 1 ? 's' : ''} pending review` : 'Manage leave requests'}
+              {pendingCount > 0 ? `${pendingCount} request${pendingCount !== 1 ? 's' : ''} pending review` : 'Manage leave & compliance'}
             </p>
           </div>
         </div>
+        <button
+          onClick={() => navigate('/hr/badges')}
+          className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+        >
+          <ShieldCheck size={15} />
+          Badge Verification
+        </button>
       </div>
+
+      {/* Section header for time off */}
+      <p className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-4">Time Off Requests</p>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">

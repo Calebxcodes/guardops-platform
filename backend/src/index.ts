@@ -50,6 +50,8 @@ import adminUsersRouter from './routes/adminUsers'
 import chatbotRouter from './routes/chatbot'
 import permissionsRouter from './routes/permissions'
 import timeOffRouter from './routes/timeOff'
+import badgesRouter from './routes/badges'
+import taxDocumentsRouter from './routes/taxDocuments'
 import { runBillingCron } from './services/billingCron'
 import { runRenewalCron } from './services/renewalCron'
 
@@ -264,6 +266,14 @@ app.use('/api/permissions', permissionsRouter)
 // ── HR: time-off (guard-facing + admin-facing) ────────────────────────────
 app.use('/api/guard/time-off', timeOffRouter)
 app.use('/api/time-off', timeOffRouter)
+
+// ── Security badges (guard-facing + admin-facing) ─────────────────────────
+app.use('/api/guard/badges', badgesRouter)
+app.use('/api/badges', badgesRouter)
+
+// ── Tax documents (guard-facing + admin-facing) ───────────────────────────
+app.use('/api/guard/tax-docs', taxDocumentsRouter)
+app.use('/api/tax-docs', taxDocumentsRouter)
 
 // ── Master admin panel ────────────────────────────────────────────────────
 app.use('/api/master-admin', masterAdminAuthRouter)

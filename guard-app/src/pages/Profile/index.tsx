@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Shield, Lock, LogOut, ChevronRight, AlertTriangle, Settings, ScanFace, CheckCircle2, Trash2, FolderOpen } from 'lucide-react'
+import { Shield, Lock, LogOut, ChevronRight, AlertTriangle, Settings, ScanFace, CheckCircle2, Trash2, FolderOpen, ShieldCheck, FileText } from 'lucide-react'
 import { profileApi, authApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
 import Card from '../../components/ui/Card'
@@ -223,6 +223,8 @@ export default function Profile() {
       {/* Menu items */}
       <Card>
         {[
+          { icon: ShieldCheck, label: 'Security Badge',   action: () => navigate('/security-badge') },
+          { icon: FileText,   label: 'Tax Documents',   action: () => navigate('/tax-documents') },
           { icon: FolderOpen, label: 'Documents',       action: () => navigate('/documents') },
           { icon: Lock,       label: 'Change Password', action: () => setShowPassSheet(true) },
           { icon: Shield,     label: 'Privacy & Data',  action: () => setShowPrivacy(true) },

@@ -613,6 +613,46 @@ export async function initSchema() {
     // public.tenants may not exist yet on a fresh database — safe to skip
   }
 
+  // ── Security badges + tax documents (Upgrade #38) ───────────────────────────
+  try {
+    const { rows: tenants } = await pool.query(
+      `SELECT id FROM public.tenants WHERE status != 'deleted'`
+    )
+    for (const t of tenants) {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS tenant_${t.id}.security_badges (
+          id                   SERIAL PRIMARY KEY,
+          guard_id             INTEGER REFERENCES tenant_${t.id}.guards(id) ON DELETE CASCADE,
+          sia_license_number   VARCHAR(50),
+          sia_expiry_date      DATE,
+          badge_number         VARCHAR(100),
+          card_type            VARCHAR(100),
+          photo_url            TEXT,
+          is_current           INTEGER DEFAULT 1,
+          status               TEXT DEFAULT 'verified',
+          reviewed_by_guard_at BIGINT,
+          created_at           TIMESTAMPTZ DEFAULT NOW(),
+          archived_at          TIMESTAMPTZ
+        );
+        CREATE INDEX IF NOT EXISTS idx_sb_guard_${t.id}   ON tenant_${t.id}.security_badges (guard_id);
+        CREATE INDEX IF NOT EXISTS idx_sb_current_${t.id} ON tenant_${t.id}.security_badges (guard_id, is_current);
+
+        CREATE TABLE IF NOT EXISTS tenant_${t.id}.tax_documents (
+          id            SERIAL PRIMARY KEY,
+          guard_id      INTEGER REFERENCES tenant_${t.id}.guards(id) ON DELETE CASCADE,
+          document_type TEXT,
+          file_name     TEXT,
+          file_url      TEXT,
+          uploaded_by   TEXT DEFAULT 'guard',
+          created_at    TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_td_guard_${t.id} ON tenant_${t.id}.tax_documents (guard_id);
+      `)
+    }
+  } catch {
+    // public.tenants may not exist yet on a fresh database — safe to skip
+  }
+
   // ── HR time-off tables (Upgrade #37) ─────────────────────────────────────────
   try {
     const { rows: tenants } = await pool.query(

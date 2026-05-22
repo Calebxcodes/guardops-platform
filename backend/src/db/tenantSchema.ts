@@ -325,6 +325,34 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS idx_time_off_requests_guard  ON time_off_requests (guard_id);
       CREATE INDEX IF NOT EXISTS idx_time_off_requests_status ON time_off_requests (status);
+
+      CREATE TABLE IF NOT EXISTS security_badges (
+        id                   SERIAL PRIMARY KEY,
+        guard_id             INTEGER REFERENCES guards(id) ON DELETE CASCADE,
+        sia_license_number   VARCHAR(50),
+        sia_expiry_date      DATE,
+        badge_number         VARCHAR(100),
+        card_type            VARCHAR(100),
+        photo_url            TEXT,
+        is_current           INTEGER DEFAULT 1,
+        status               TEXT DEFAULT 'verified',
+        reviewed_by_guard_at BIGINT,
+        created_at           TIMESTAMPTZ DEFAULT NOW(),
+        archived_at          TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS idx_security_badges_guard   ON security_badges (guard_id);
+      CREATE INDEX IF NOT EXISTS idx_security_badges_current ON security_badges (guard_id, is_current);
+
+      CREATE TABLE IF NOT EXISTS tax_documents (
+        id            SERIAL PRIMARY KEY,
+        guard_id      INTEGER REFERENCES guards(id) ON DELETE CASCADE,
+        document_type TEXT,
+        file_name     TEXT,
+        file_url      TEXT,
+        uploaded_by   TEXT DEFAULT 'guard',
+        created_at    TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_tax_documents_guard ON tax_documents (guard_id);
     `)
 
     await client.query(`

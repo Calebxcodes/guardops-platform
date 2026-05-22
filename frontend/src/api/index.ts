@@ -244,6 +244,15 @@ export const chatbotApi = {
     api.delete(`/chatbot/kb/${id}`).then(r => r.data),
 }
 
+export const badgesApi = {
+  list: (): Promise<any[]> =>
+    api.get('/badges/admin/guards').then(r => r.data),
+  guardBadges: (guardId: number): Promise<{ current: any; history: any[] }> =>
+    api.get(`/badges/admin/guards/${guardId}`).then(r => r.data),
+  guardTaxDocs: (guardId: number): Promise<any[]> =>
+    api.get(`/tax-docs/admin/guards/${guardId}`).then(r => r.data),
+}
+
 export const portalApi = {
   generate:    (client_id: number, label?: string) =>
     api.post('/portal/generate', { client_id, label }).then(r => r.data),

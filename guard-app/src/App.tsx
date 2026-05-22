@@ -19,6 +19,8 @@ const Messages       = lazy(() => import('./pages/Messages'))
 const Incidents      = lazy(() => import('./pages/Incidents'))
 const Profile        = lazy(() => import('./pages/Profile'))
 const DocumentsPage  = lazy(() => import('./pages/Documents'))
+const SecurityBadge  = lazy(() => import('./pages/SecurityBadge'))
+const TaxDocuments   = lazy(() => import('./pages/TaxDocuments'))
 
 // Minimal spinner — matches the dark app theme
 function PageLoader() {
@@ -85,6 +87,8 @@ export default function App() {
             <Route path="messages"       element={<Messages />} />
             <Route path="incidents"      element={<Incidents />} />
             <Route path="documents"      element={<DocumentsPage />} />
+            <Route path="security-badge" element={<SecurityBadge />} />
+            <Route path="tax-documents"  element={<TaxDocuments />} />
             <Route path="profile"        element={<Profile />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

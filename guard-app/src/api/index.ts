@@ -104,6 +104,29 @@ export const timeOffApi = {
     api.post('/guard/time-off/requests', data).then(r => r.data),
 }
 
+export const badgeApi = {
+  current: (): Promise<{ current: any; history: any[] }> =>
+    api.get('/guard/badges/current').then(r => r.data),
+  upload: (file: File): Promise<{ extracted: any; photo_url: string }> => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/guard/badges/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+  },
+  confirm: (data: { sia_license_number?: string; sia_expiry_date: string; badge_number?: string; card_type?: string; photo_url?: string | null }) =>
+    api.post('/guard/badges/confirm', data).then(r => r.data),
+}
+
+export const taxDocsApi = {
+  list: (): Promise<any[]> => api.get('/guard/tax-docs').then(r => r.data),
+  upload: (file: File, document_type: string): Promise<any> => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('document_type', document_type)
+    return api.post('/guard/tax-docs/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+  },
+  delete: (id: number) => api.delete(`/guard/tax-docs/${id}`).then(r => r.data),
+}
+
 export const profileApi = {
   get: () => api.get('/guard/profile').then(r => r.data),
   update: (data: any) => api.put('/guard/profile', data).then(r => r.data),
