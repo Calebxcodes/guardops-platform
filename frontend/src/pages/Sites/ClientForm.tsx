@@ -3,6 +3,8 @@ import { Client } from '../../types'
 
 interface Props { client: Client | null; onSave: (d: any) => void; onCancel: () => void }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export default function ClientForm({ client, onSave, onCancel }: Props) {
   const [form, setForm] = useState({
     name: client?.name || '',
@@ -12,10 +14,25 @@ export default function ClientForm({ client, onSave, onCancel }: Props) {
     address: client?.address || '',
     notes: client?.notes || '',
   })
+  const [emailError, setEmailError] = useState('')
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.contact_email.trim()) {
+      setEmailError('Email is required')
+      return
+    }
+    if (!EMAIL_RE.test(form.contact_email)) {
+      setEmailError('Please enter a valid email address')
+      return
+    }
+    setEmailError('')
+    onSave(form)
+  }
+
   return (
-    <form onSubmit={e => { e.preventDefault(); onSave(form) }} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="label">Company Name *</label>
         <input className="input" required value={form.name} onChange={e => set('name', e.target.value)} />
@@ -26,8 +43,20 @@ export default function ClientForm({ client, onSave, onCancel }: Props) {
           <input className="input" value={form.contact_name} onChange={e => set('contact_name', e.target.value)} />
         </div>
         <div>
-          <label className="label">Contact Email</label>
-          <input className="input" type="email" value={form.contact_email} onChange={e => set('contact_email', e.target.value)} />
+          <label className="label">Contact Email *</label>
+          <input
+            className={`input ${emailError ? 'border-red-400' : ''}`}
+            type="email"
+            required
+            value={form.contact_email}
+            onChange={e => { set('contact_email', e.target.value); if (emailError) setEmailError('') }}
+            onBlur={() => {
+              if (form.contact_email && !EMAIL_RE.test(form.contact_email))
+                setEmailError('Please enter a valid email address')
+            }}
+            placeholder="contact@company.com"
+          />
+          {emailError && <p className="text-xs text-red-500 mt-1">{emailError}</p>}
         </div>
         <div>
           <label className="label">Contact Phone</label>

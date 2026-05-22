@@ -27,7 +27,9 @@ export default function Scheduling() {
   const [showDetail, setShowDetail] = useState(false)
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null)
   const [slotInfo, setSlotInfo] = useState<{ start: Date; end: Date } | null>(null)
-  const [view, setView] = useState<any>(Views.WEEK)
+  const [view, setView] = useState<any>(
+    () => (localStorage.getItem('scheduling-view') as any) || Views.MONTH
+  )
   const [date, setDate] = useState(new Date())
   const [error, setError] = useState('')
 
@@ -139,7 +141,7 @@ export default function Scheduling() {
           startAccessor="start"
           endAccessor="end"
           view={view}
-          onView={setView}
+          onView={(v) => { setView(v); localStorage.setItem('scheduling-view', v) }}
           date={date}
           onNavigate={setDate}
           selectable
@@ -157,7 +159,7 @@ export default function Scheduling() {
           views={[Views.MONTH, Views.WEEK, Views.DAY]}
           step={30}
           timeslots={2}
-          defaultView={Views.WEEK}
+          defaultView={Views.MONTH}
         />
       </div>
 

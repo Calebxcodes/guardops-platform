@@ -250,8 +250,17 @@ export default function Settings() {
             <h2 className="font-semibold flex items-center gap-2"><Shield size={16} className="text-blue-500" /> Company Settings</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="label">Email <D dirty={isDirty('email')} /></label>
-                <input className="input" type="email" value={settings.email} onChange={e => set('email', e.target.value)} />
+                <label className="label flex items-center gap-1">
+                  Company Email <Lock size={10} className="text-gray-400" />
+                </label>
+                <input
+                  className="input bg-gray-50 text-gray-500 cursor-not-allowed select-text"
+                  type="email"
+                  value={admin?.email || '—'}
+                  disabled
+                  readOnly
+                />
+                <p className="text-xs text-gray-400 mt-1">Used during account creation. Cannot be changed.</p>
               </div>
               <div>
                 <label className="label">Phone <D dirty={isDirty('phone')} /></label>

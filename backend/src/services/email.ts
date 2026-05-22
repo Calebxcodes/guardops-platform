@@ -1,8 +1,9 @@
 import { Resend } from 'resend'
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY
-const FROM_EMAIL     = process.env.FROM_EMAIL     || 'noreply@strondis.com'
-const FRONTEND_URL   = process.env.FRONTEND_URL   || 'https://app.strondis.com'
+const RESEND_API_KEY  = process.env.RESEND_API_KEY
+const FROM_EMAIL      = process.env.FROM_EMAIL      || 'noreply@strondis.com'
+const FRONTEND_URL    = process.env.FRONTEND_URL    || 'https://app.strondis.com'
+const GUARD_APP_URL   = process.env.GUARD_APP_URL   || 'https://guard.strondis.com'
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null
 
@@ -188,6 +189,68 @@ export async function sendTimeOffRequestToAdmin(
       <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0" />
       <p style="color:#d1d5db;font-size:11px">Strondis Ltd · noreply@strondis.com</p>
     </div>
+  `)
+}
+
+export async function sendGuardWelcomeEmail(
+  to: string,
+  guardName: string,
+  companyName: string,
+  resetToken: string,
+  tenantSlug?: string
+) {
+  const guardBase = tenantSlug ? `https://${tenantSlug}.strondis.com` : GUARD_APP_URL
+  const resetLink = `${guardBase}/reset-password?token=${resetToken}`
+  await send(to, `Welcome to ${companyName} — Set Your Password`, `
+    <!DOCTYPE html>
+    <html>
+    <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+      <div style="max-width:600px;margin:0 auto;padding:24px">
+        <div style="background:#2563eb;border-radius:12px 12px 0 0;padding:24px 28px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;background:rgba(255,255,255,0.2);border-radius:8px;display:flex;align-items:center;justify-content:center">
+              <span style="color:white;font-weight:900;font-size:18px">S</span>
+            </div>
+            <span style="color:white;font-weight:700;font-size:18px">${companyName}</span>
+          </div>
+          <h1 style="color:white;margin:16px 0 4px;font-size:22px">Welcome, ${guardName}!</h1>
+          <p style="color:rgba(255,255,255,0.8);margin:0;font-size:14px">Your officer account has been created</p>
+        </div>
+
+        <div style="background:white;padding:28px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb">
+          <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px">
+            Hi ${guardName},<br><br>
+            Your account at <strong>${companyName}</strong> has been set up on the Strondis platform.
+            Click below to set your password and get started.
+          </p>
+
+          <div style="text-align:center;margin:28px 0">
+            <a href="${resetLink}"
+               style="display:inline-block;padding:14px 32px;background:#2563eb;color:#ffffff;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;letter-spacing:0.01em">
+              Set Your Password →
+            </a>
+          </div>
+
+          <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:12px 16px;margin:20px 0">
+            <p style="color:#92400e;font-size:13px;margin:0">
+              ⏰ This link expires in <strong>24 hours</strong>. After that, ask your manager to resend the welcome email.
+            </p>
+          </div>
+
+          <p style="color:#6b7280;font-size:13px;margin:16px 0 0">
+            If you weren't expecting this email, you can safely ignore it.
+            Your account will remain inactive until you set a password.
+          </p>
+        </div>
+
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:0 0 12px 12px;padding:16px 28px;text-align:center">
+          <p style="color:#9ca3af;font-size:11px;margin:0">
+            © 2026 Strondis Security — <a href="https://strondis.com" style="color:#9ca3af">strondis.com</a>
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
   `)
 }
 

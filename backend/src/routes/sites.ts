@@ -37,20 +37,37 @@ router.get('/:id', async (req: Request, res: Response) => {
 })
 
 router.post('/', async (req: Request, res: Response) => {
-  const { client_id, name, address, lat, lng, geofence_radius, requirements, post_orders, guards_required, hourly_rate } = req.body
-  const { rows } = await query(`
-    INSERT INTO sites (client_id, name, address, lat, lng, geofence_radius, requirements, post_orders, guards_required, hourly_rate)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
-  `, [client_id, name, address, lat, lng, geofence_radius || 183, requirements, post_orders, guards_required || 1, hourly_rate || 0])
-  res.status(201).json(rows[0])
+  const { client_id, name, address, lat, lng, geofence_radius, requirements, post_orders, guards_required, hourly_rate, guard_hourly_rate } = req.body
+  try {
+    const { rows } = await query(`
+      INSERT INTO sites (client_id, name, address, lat, lng, geofence_radius, requirements, post_orders, guards_required, hourly_rate, guard_hourly_rate)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *
+    `, [client_id, name, address, lat, lng, geofence_radius || 183, requirements, post_orders, guards_required || 1, hourly_rate || 0, guard_hourly_rate || 0])
+    res.status(201).json(rows[0])
+  } catch {
+    // Fallback if guard_hourly_rate column doesn't exist yet (old tenant)
+    const { rows } = await query(`
+      INSERT INTO sites (client_id, name, address, lat, lng, geofence_radius, requirements, post_orders, guards_required, hourly_rate)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
+    `, [client_id, name, address, lat, lng, geofence_radius || 183, requirements, post_orders, guards_required || 1, hourly_rate || 0])
+    res.status(201).json(rows[0])
+  }
 })
 
 router.put('/:id', async (req: Request, res: Response) => {
-  const { client_id, name, address, lat, lng, geofence_radius, requirements, post_orders, guards_required, hourly_rate } = req.body
-  await query(`
-    UPDATE sites SET client_id=$1, name=$2, address=$3, lat=$4, lng=$5, geofence_radius=$6, requirements=$7, post_orders=$8, guards_required=$9, hourly_rate=$10
-    WHERE id=$11
-  `, [client_id, name, address, lat, lng, geofence_radius ?? 183, requirements, post_orders, guards_required, hourly_rate, req.params.id])
+  const { client_id, name, address, lat, lng, geofence_radius, requirements, post_orders, guards_required, hourly_rate, guard_hourly_rate } = req.body
+  try {
+    await query(`
+      UPDATE sites SET client_id=$1, name=$2, address=$3, lat=$4, lng=$5, geofence_radius=$6, requirements=$7, post_orders=$8, guards_required=$9, hourly_rate=$10, guard_hourly_rate=$11
+      WHERE id=$12
+    `, [client_id, name, address, lat, lng, geofence_radius ?? 183, requirements, post_orders, guards_required, hourly_rate, guard_hourly_rate || 0, req.params.id])
+  } catch {
+    // Fallback for old tenant schemas without guard_hourly_rate
+    await query(`
+      UPDATE sites SET client_id=$1, name=$2, address=$3, lat=$4, lng=$5, geofence_radius=$6, requirements=$7, post_orders=$8, guards_required=$9, hourly_rate=$10
+      WHERE id=$11
+    `, [client_id, name, address, lat, lng, geofence_radius ?? 183, requirements, post_orders, guards_required, hourly_rate, req.params.id])
+  }
   const { rows } = await query('SELECT * FROM sites WHERE id = $1', [req.params.id])
   res.json(rows[0])
 })

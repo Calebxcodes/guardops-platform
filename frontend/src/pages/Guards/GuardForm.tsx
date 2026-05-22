@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { Guard } from '../../types'
 import { Plus, X, CheckCircle, AlertTriangle, Clock } from 'lucide-react'
 import { differenceInDays, parseISO, format } from 'date-fns'
@@ -71,17 +71,16 @@ export default function GuardForm({ guard, onSave, onCancel }: Props) {
     date_of_birth:    guard?.date_of_birth    || '',
     employment_type:  guard?.employment_type  || 'full-time',
     status:           guard?.status           || 'off-duty',
-    hourly_rate:      guard?.hourly_rate      || 15,
+    hourly_rate:      guard?.hourly_rate      || 15, // preserved but not shown (rate comes from site)
     bank_account:     guard?.bank_account     || '',
     bank_routing:     guard?.bank_routing     || '',
     notes:            guard?.notes            || '',
     skills:           guard?.skills           || [] as string[],
     certifications:   guard?.certifications   || [] as { name: string; expiry: string; licence_number?: string }[],
-    avatar_url:       guard?.avatar_url       || '',
   })
 
   const [newCert, setNewCert] = useState({ name: '', expiry: '', licence_number: '' })
-  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [phoneError, setPhoneError] = useState('')
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }))
 
@@ -103,49 +102,27 @@ export default function GuardForm({ guard, onSave, onCancel }: Props) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave(form)
+    const digits = form.phone.replace(/\D/g, '')
+    if (digits && digits.length !== 11) {
+      setPhoneError('Phone number must be exactly 11 digits')
+      return
+    }
+    setPhoneError('')
+    onSave({ ...form, phone: digits || form.phone })
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Avatar + Name row */}
-      <div className="flex items-start gap-4">
-        {/* Optional profile photo */}
-        <div className="shrink-0">
-          <div
-            className="w-16 h-16 rounded-full bg-blue-100 border-2 border-dashed border-blue-300 flex items-center justify-center cursor-pointer overflow-hidden hover:border-blue-500 transition-colors"
-            onClick={() => avatarInputRef.current?.click()}
-            title="Click to add profile photo URL"
-          >
-            {form.avatar_url ? (
-              <img src={form.avatar_url} alt="Avatar" className="w-full h-full object-cover" onError={() => set('avatar_url', '')} />
-            ) : (
-              <span className="text-blue-400 text-xs text-center leading-tight px-1">Photo<br/>URL</span>
-            )}
-          </div>
+      {/* Name row */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="label">First Name *</label>
+          <input className="input" required value={form.first_name} onChange={e => set('first_name', e.target.value)} />
         </div>
-        <div className="flex-1 grid grid-cols-2 gap-4">
-          <div>
-            <label className="label">First Name *</label>
-            <input className="input" required value={form.first_name} onChange={e => set('first_name', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Last Name *</label>
-            <input className="input" required value={form.last_name} onChange={e => set('last_name', e.target.value)} />
-          </div>
+        <div>
+          <label className="label">Last Name *</label>
+          <input className="input" required value={form.last_name} onChange={e => set('last_name', e.target.value)} />
         </div>
-      </div>
-
-      {/* Avatar URL field (shown separately for clarity) */}
-      <div>
-        <label className="label">Profile Photo URL <span className="text-gray-400 font-normal">(optional)</span></label>
-        <input
-          ref={avatarInputRef}
-          className="input text-sm"
-          placeholder="https://... (paste image URL)"
-          value={form.avatar_url}
-          onChange={e => set('avatar_url', e.target.value)}
-        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -154,8 +131,20 @@ export default function GuardForm({ guard, onSave, onCancel }: Props) {
           <input className="input" type="email" value={form.email} onChange={e => set('email', e.target.value)} />
         </div>
         <div>
-          <label className="label">Phone</label>
-          <input className="input" value={form.phone} onChange={e => set('phone', e.target.value)} />
+          <label className="label">Phone <span className="text-gray-400 font-normal">(11 digits)</span></label>
+          <input
+            className={`input ${phoneError ? 'border-red-400' : ''}`}
+            type="tel"
+            maxLength={11}
+            value={form.phone}
+            onChange={e => {
+              const val = e.target.value.replace(/\D/g, '').slice(0, 11)
+              set('phone', val)
+              if (phoneError) setPhoneError('')
+            }}
+            placeholder="07700900000"
+          />
+          {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
         </div>
         <div className="col-span-2">
           <label className="label">Address</label>
@@ -164,10 +153,6 @@ export default function GuardForm({ guard, onSave, onCancel }: Props) {
         <div>
           <label className="label">Date of Birth</label>
           <input className="input" type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} />
-        </div>
-        <div>
-          <label className="label">Hourly Rate (£)</label>
-          <input className="input" type="number" min="0" step="0.5" value={form.hourly_rate} onChange={e => set('hourly_rate', parseFloat(e.target.value))} />
         </div>
         <div>
           <label className="label">Employment Type</label>
@@ -257,9 +242,10 @@ export default function GuardForm({ guard, onSave, onCancel }: Props) {
             type="text"
             inputMode="numeric"
             placeholder="Licence No."
-            title="SIA licence number — digits only"
+            title="SIA licence number — 16 digits"
+            maxLength={16}
             value={newCert.licence_number}
-            onChange={e => setNewCert(c => ({ ...c, licence_number: e.target.value.replace(/\D/g, '') }))}
+            onChange={e => setNewCert(c => ({ ...c, licence_number: e.target.value.replace(/\D/g, '').slice(0, 16) }))}
           />
           <input
             className="input w-36 text-sm"

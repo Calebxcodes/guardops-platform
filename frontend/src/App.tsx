@@ -5,6 +5,7 @@ import { useTenantStore } from './store/tenantStore'
 import { getSubdomainSlug } from './utils/tenantDetection'
 import CookieConsent from './components/CookieConsent'
 import Chatbot from './components/Chatbot'
+import { ThemeProvider } from './context/ThemeContext'
 
 // Eagerly load Layout — it's the app shell, needed immediately after login
 import Layout from './components/Layout'
@@ -110,6 +111,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <ThemeProvider>
     <BrowserRouter>
       <TenantGuard>
       <CookieConsent />
@@ -149,5 +151,6 @@ export default function App() {
       </Suspense>
       </TenantGuard>
     </BrowserRouter>
+    </ThemeProvider>
   )
 }

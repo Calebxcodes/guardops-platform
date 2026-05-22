@@ -93,6 +93,7 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
         post_orders      TEXT,
         guards_required  INTEGER DEFAULT 1,
         hourly_rate      REAL DEFAULT 0,
+        guard_hourly_rate REAL DEFAULT 0,
         geofence_radius  INTEGER DEFAULT 183,
         active           INTEGER DEFAULT 1,
         created_at       TIMESTAMPTZ DEFAULT NOW()
@@ -360,6 +361,11 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
       SELECT name, paid, 1
       FROM (VALUES ('Annual Leave', 1), ('Sick Leave', 1), ('Personal Leave', 1), ('Unpaid Leave', 0)) AS d(name, paid)
       WHERE NOT EXISTS (SELECT 1 FROM time_off_types)
+    `)
+
+    // Schema migrations — idempotent column additions for existing tenants
+    await client.query(`
+      ALTER TABLE sites ADD COLUMN IF NOT EXISTS guard_hourly_rate REAL DEFAULT 0
     `)
 
     await client.query(`SET search_path TO public`)

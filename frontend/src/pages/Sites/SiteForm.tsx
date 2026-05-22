@@ -9,17 +9,21 @@ type GeoStatus = 'idle' | 'loading' | 'found' | 'error'
 
 export default function SiteForm({ site, clients, onSave, onCancel }: Props) {
   const [form, setForm] = useState({
-    client_id:       site?.client_id     || '',
-    name:            site?.name          || '',
-    address:         site?.address       || '',
-    lat:             site?.lat           ?? null as number | null,
-    lng:             site?.lng           ?? null as number | null,
-    geofence_radius: site?.geofence_radius ?? 183,
-    requirements:    site?.requirements  || '',
-    post_orders:     site?.post_orders   || '',
-    guards_required: site?.guards_required || 1,
-    hourly_rate:     site?.hourly_rate   || 0,
+    client_id:         site?.client_id       || '',
+    name:              site?.name            || '',
+    address:           site?.address         || '',
+    lat:               site?.lat             ?? null as number | null,
+    lng:               site?.lng             ?? null as number | null,
+    geofence_radius:   site?.geofence_radius ?? 183,
+    requirements:      site?.requirements    || '',
+    post_orders:       site?.post_orders     || '',
+    guards_required:   site?.guards_required || 1,
+    hourly_rate:       (site as any)?.hourly_rate       || 0,
+    guard_hourly_rate: (site as any)?.guard_hourly_rate || 0,
   })
+  const [postcode, setPostcode] = useState('')
+  const [postcodeStatus, setPostcodeStatus] = useState<'idle' | 'loading' | 'found' | 'error'>('idle')
+  const [postcodeData, setPostcodeData] = useState<any>(null)
   const [geoStatus, setGeoStatus] = useState<GeoStatus>(
     site?.lat && site?.lng ? 'found' : 'idle'
   )
@@ -75,6 +79,33 @@ export default function SiteForm({ site, clients, onSave, onCancel }: Props) {
   const updateChecklistItem = (i: number, field: 'label' | 'description', value: string) =>
     setChecklist(c => c.map((item, idx) => idx === i ? { ...item, [field]: value } : item))
 
+  const lookupPostcode = async (pc: string) => {
+    const cleaned = pc.replace(/\s/g, '').toUpperCase()
+    if (!/^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/.test(cleaned)) {
+      setPostcodeStatus('idle')
+      return
+    }
+    setPostcodeStatus('loading')
+    try {
+      const res = await fetch(`https://api.postcodes.io/postcodes/${cleaned}`)
+      const data = await res.json()
+      if (data.status === 200) {
+        setPostcodeData(data.result)
+        setPostcodeStatus('found')
+        // Pre-fill address and geocode from postcode
+        const area = [data.result.parish, data.result.admin_district, data.result.region]
+          .filter(Boolean).join(', ')
+        if (!form.address) set('address', `${pc.trim()}, ${area}`)
+        setForm(f => ({ ...f, lat: data.result.latitude, lng: data.result.longitude }))
+        setGeoStatus('found')
+      } else {
+        setPostcodeStatus('error')
+      }
+    } catch {
+      setPostcodeStatus('error')
+    }
+  }
+
   const geocodeAddress = async (address: string) => {
     if (!address.trim()) { setGeoStatus('idle'); return }
     setGeoStatus('loading')
@@ -119,8 +150,34 @@ export default function SiteForm({ site, clients, onSave, onCancel }: Props) {
         <input className="input" required value={form.name} onChange={e => set('name', e.target.value)} />
       </div>
 
+      {/* Postcode lookup (UK) */}
       <div>
-        <label className="label">Address</label>
+        <label className="label">Postcode <span className="text-gray-400 font-normal">(UK — auto-fills location)</span></label>
+        <div className="flex gap-2">
+          <input
+            className="input w-36 uppercase"
+            value={postcode}
+            onChange={e => {
+              const val = e.target.value.toUpperCase()
+              setPostcode(val)
+              if (val.length >= 5) lookupPostcode(val)
+              else setPostcodeStatus('idle')
+            }}
+            placeholder="SW1A 1AA"
+            maxLength={8}
+          />
+          {postcodeStatus === 'loading' && <span className="self-center text-xs text-gray-400">Searching…</span>}
+          {postcodeStatus === 'found' && postcodeData && (
+            <span className="self-center text-xs text-green-600">
+              ✓ {postcodeData.admin_district}, {postcodeData.region}
+            </span>
+          )}
+          {postcodeStatus === 'error' && <span className="self-center text-xs text-red-500">Postcode not found</span>}
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Full Address</label>
         <div className="relative">
           <input
             className="input pr-8"
@@ -193,9 +250,23 @@ export default function SiteForm({ site, clients, onSave, onCancel }: Props) {
           <input className="input" type="number" min="1" value={form.guards_required} onChange={e => set('guards_required', parseInt(e.target.value))} />
         </div>
         <div>
-          <label className="label">Client Billing Rate (£/hr)</label>
-          <input className="input" type="number" min="0" step="0.5" value={form.hourly_rate} onChange={e => set('hourly_rate', parseFloat(e.target.value))} />
+          <label className="label">Client Hourly Bill (£/hr)</label>
+          <input className="input" type="number" min="0" step="0.5" value={form.hourly_rate} onChange={e => set('hourly_rate', parseFloat(e.target.value) || 0)} />
+          <p className="text-xs text-gray-400 mt-0.5">What you charge the client</p>
         </div>
+        <div className="col-span-2 sm:col-span-1">
+          <label className="label">Guard Hourly Pay (£/hr)</label>
+          <input className="input" type="number" min="0" step="0.5" value={form.guard_hourly_rate} onChange={e => set('guard_hourly_rate', parseFloat(e.target.value) || 0)} />
+          <p className="text-xs text-gray-400 mt-0.5">What each guard gets paid</p>
+        </div>
+        {form.hourly_rate > 0 && form.guard_hourly_rate > 0 && (
+          <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <p className="text-sm text-blue-700">
+              Profit margin: <strong>£{(form.hourly_rate - form.guard_hourly_rate).toFixed(2)}/hr</strong>
+              {' '}({Math.round(((form.hourly_rate - form.guard_hourly_rate) / form.hourly_rate) * 100)}%)
+            </p>
+          </div>
+        )}
       </div>
 
       <div>

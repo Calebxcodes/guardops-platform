@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import * as Sentry from '@sentry/node'
 import { query, pool } from '../db/pool'
 import { requirePermission } from '../middleware/rbac'
+import { sendGuardWelcomeEmail } from '../services/email'
 
 const router = Router()
 
@@ -115,6 +117,38 @@ router.post('/', requirePermission('guards', 'create'), async (req: Request, res
          ON CONFLICT (guard_email, tenant_id) DO UPDATE SET guard_id = EXCLUDED.guard_id`,
         [email, tid(req), guard.id]
       )
+
+      // Send welcome email with password-set link
+      try {
+        const rawToken   = crypto.randomBytes(32).toString('hex')
+        const tokenHash  = crypto.createHash('sha256').update(rawToken).digest('hex')
+        const expiresAt  = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+
+        await query(
+          `INSERT INTO password_reset_tokens (user_type, user_id, token, expires_at)
+           VALUES ('guard', $1, $2, $3)`,
+          [guard.id, tokenHash, expiresAt.toISOString()],
+          tid(req)
+        )
+
+        // Fetch tenant slug for branded URL
+        const { rows: tenantRows } = await pool.query(
+          'SELECT slug, name FROM public.tenants WHERE id = $1',
+          [tid(req)]
+        )
+        const tenantSlug = tenantRows[0]?.slug
+        const tenantName = tenantRows[0]?.name || 'Your Company'
+
+        await sendGuardWelcomeEmail(
+          email,
+          `${first_name} ${last_name}`,
+          tenantName,
+          rawToken,
+          tenantSlug
+        )
+      } catch (emailErr) {
+        console.error('[guards POST] Welcome email failed (non-fatal):', emailErr)
+      }
     }
 
     res.status(201).json({

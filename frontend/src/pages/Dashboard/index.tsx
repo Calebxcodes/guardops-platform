@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { dashboardApi } from '../../api'
 import { DashboardMetrics } from '../../types'
 import {
   Users, AlertCircle, Clock, FileText, TrendingUp, Shield,
-  MapPin, Activity, ChevronRight, UserX
+  MapPin, ChevronRight, UserX, UserCheck, Plus
 } from 'lucide-react'
 import StatusBadge from '../../components/StatusBadge'
 import InstallPromptButton from '../../components/InstallPromptButton'
@@ -12,15 +12,9 @@ import PrivacyDialog from '../../components/PrivacyDialog'
 import { OnboardingBanner } from '../../components/OnboardingBanner'
 import { format, isPast, differenceInMinutes } from 'date-fns'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer
 } from 'recharts'
 
-const MONTH_LABELS: Record<string, string> = {
-  '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr',
-  '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Aug',
-  '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec',
-}
 
 function KpiCard({ icon: Icon, label, value, sub, color, onClick }: any) {
   return (
@@ -47,12 +41,43 @@ export default function Dashboard() {
   const [financial, setFinancial] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showPrivacy, setShowPrivacy] = useState(false)
+  const [activeGuards, setActiveGuards] = useState<any[]>([])
+  const [uncoveredSites, setUncoveredSites] = useState<any[]>([])
+
+  const fetchActiveGuards = useCallback(async () => {
+    try {
+      const apiBase = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
+      const token = localStorage.getItem('admin_token')
+      const r = await fetch(`${apiBase}/dashboard/active-guards`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
+      const d = await r.json()
+      if (d.success) setActiveGuards(d.guards)
+    } catch { /* ignore */ }
+  }, [])
+
+  const fetchUncoveredShifts = useCallback(async () => {
+    try {
+      const apiBase = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
+      const token = localStorage.getItem('admin_token')
+      const r = await fetch(`${apiBase}/dashboard/uncovered-shifts`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
+      const d = await r.json()
+      if (d.success) setUncoveredSites(d.uncovered)
+    } catch { /* ignore */ }
+  }, [])
 
   useEffect(() => {
     Promise.all([dashboardApi.metrics(), dashboardApi.financial()])
       .then(([m, f]) => { setMetrics(m); setFinancial(f) })
       .finally(() => setLoading(false))
-  }, [])
+    fetchActiveGuards()
+    fetchUncoveredShifts()
+    // Refresh active guards every 30s
+    const iv = setInterval(fetchActiveGuards, 30000)
+    return () => clearInterval(iv)
+  }, [fetchActiveGuards, fetchUncoveredShifts])
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -72,18 +97,7 @@ export default function Dashboard() {
     ? Math.round(((metrics.revenue_this_month - metrics.payroll_cost_this_month) / metrics.revenue_this_month) * 100)
     : 0
 
-  const chartData = (financial?.monthlyRevenue || []).map((r: any) => {
-    const payrollEntry = financial?.monthlyPayroll?.find((p: any) => p.month === r.month)
-    // r.month is "YYYY-MM" — convert "MM" part to month name
-    const monthCode = r.month.substring(5)   // "04"
-    const monthLabel = MONTH_LABELS[monthCode] ?? monthCode
-    const yearSuffix = `'${r.month.substring(2, 4)}`  // "'26"
-    return {
-      month: `${monthLabel} ${yearSuffix}`,
-      revenue: Math.round(r.revenue || 0),
-      payroll: Math.round(payrollEntry?.cost || 0),
-    }
-  })
+  const revenueByClientData = financial?.revenueByClient || []
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
@@ -155,50 +169,91 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        <div className="card p-4 sm:p-5 lg:col-span-2">
-          <h2 className="font-semibold text-sm sm:text-base mb-4 flex items-center gap-2">
-            <Activity size={15} className="text-blue-500 shrink-0" />
-            Revenue vs Payroll — Last 6 Months
-          </h2>
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} width={55} tickFormatter={(v: number) => `£${(v/1000).toFixed(0)}k`} />
-                <Tooltip
-                  formatter={(v: number, name: string) => [`£${v.toLocaleString('en-GB')}`, name === 'revenue' ? 'Revenue' : 'Payroll']}
-                  labelStyle={{ fontWeight: 600 }}
-                />
-                <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} name="Revenue" />
-                <Line type="monotone" dataKey="payroll" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} name="Payroll" />
-              </LineChart>
-            </ResponsiveContainer>
+      {/* Active Guards + Uncovered Shifts Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* Active Guards on Duty */}
+        <div className="card p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-sm sm:text-base flex items-center gap-2">
+              <UserCheck size={15} className="text-green-500 shrink-0" />
+              Active Guards on Duty
+            </h2>
+            <span className="text-xs text-gray-400">{activeGuards.length} clocked in</span>
+          </div>
+          {activeGuards.length === 0 ? (
+            <p className="text-gray-400 text-sm py-4 text-center">No guards currently clocked in</p>
           ) : (
-            <div className="h-44 flex items-center justify-center text-gray-400 text-sm">No data yet</div>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {activeGuards.slice(0, 6).map((g: any) => (
+                <div key={g.id} className="flex items-center justify-between py-1.5 border-b last:border-0 text-sm">
+                  <div className="min-w-0">
+                    <span className="font-medium text-gray-900">{g.first_name} {g.last_name}</span>
+                    {g.site_name && <span className="text-gray-400 text-xs ml-1.5">— {g.site_name}</span>}
+                  </div>
+                  <span className="text-green-600 text-xs font-medium shrink-0 ml-2">● On Duty</span>
+                </div>
+              ))}
+              {activeGuards.length > 6 && (
+                <p className="text-xs text-gray-400 pt-1">…and {activeGuards.length - 6} more</p>
+              )}
+            </div>
           )}
+          <button
+            onClick={() => navigate('/guards')}
+            className="mt-3 text-xs text-blue-500 hover:underline flex items-center gap-1"
+          >
+            View all guards <ChevronRight size={12} />
+          </button>
         </div>
 
+        {/* Uncovered Shifts */}
+        <div className="card p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-sm sm:text-base flex items-center gap-2">
+              <AlertCircle size={15} className="text-red-500 shrink-0" />
+              Uncovered Shifts
+            </h2>
+            <span className="text-xs text-gray-400">Sites with no guards</span>
+          </div>
+          {uncoveredSites.length === 0 ? (
+            <p className="text-green-600 text-sm py-4 text-center">All sites covered ✓</p>
+          ) : (
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {uncoveredSites.map((site: any) => (
+                <div key={site.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">{site.name}</div>
+                    {site.address && <div className="text-xs text-gray-400 truncate">{site.address}</div>}
+                  </div>
+                  <button
+                    onClick={() => navigate(`/scheduling?site=${site.id}`)}
+                    className="shrink-0 ml-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-2 py-1 hover:bg-blue-50"
+                  >
+                    <Plus size={11} /> Add Guard
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Revenue by Client chart */}
+      {revenueByClientData.length > 0 && (
         <div className="card p-4 sm:p-5">
           <h2 className="font-semibold text-sm sm:text-base mb-4 flex items-center gap-2">
             <TrendingUp size={15} className="text-blue-500 shrink-0" /> Revenue by Client
           </h2>
-          {financial?.revenueByClient?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={financial.revenueByClient} layout="vertical">
-                <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `£${(v/1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={70} />
-                <Tooltip formatter={(v: number) => [`£${Math.round(v).toLocaleString('en-GB')}`, 'Revenue']} />
-                <Bar dataKey="revenue" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-44 flex items-center justify-center text-gray-400 text-sm">No data yet</div>
-          )}
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={revenueByClientData} layout="vertical">
+              <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `£${(v/1000).toFixed(0)}k`} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
+              <Tooltip formatter={(v: number) => [`£${Math.round(v).toLocaleString('en-GB')}`, 'Revenue']} />
+              <Bar dataKey="revenue" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-      </div>
+      )}
 
       {/* Shifts + Incidents */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

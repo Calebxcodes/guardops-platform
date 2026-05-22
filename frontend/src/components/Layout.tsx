@@ -2,9 +2,11 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, MapPin, Calendar, ClipboardList,
   DollarSign, BarChart2, AlertTriangle, Settings, Shield,
-  ShieldCheck, ExternalLink, MessageSquare, LogOut, Menu, X, FolderOpen, LineChart, Bell, UserCog, Briefcase
+  ShieldCheck, ExternalLink, MessageSquare, LogOut, Menu, X, FolderOpen, LineChart, Bell, UserCog, Briefcase,
+  Sun, Moon
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { useTheme } from '../context/ThemeContext'
 import clsx from 'clsx'
 import { useAuthStore } from '../store/authStore'
 import { useTenantStore } from '../store/tenantStore'
@@ -48,6 +50,7 @@ export default function Layout() {
   const { admin, logout } = useAuthStore()
   const tenant = useTenantStore(s => s.tenant)
   const navigate = useNavigate()
+  const { isDark, toggle: toggleTheme } = useTheme()
 
   const role = (admin?.role || 'owner') as RoleType
   const visibleNav = nav.filter(item => canAccessNav(role, item.to))
@@ -170,7 +173,19 @@ export default function Layout() {
         </nav>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-gray-800 shrink-0">
+        <div className="px-4 py-3 border-t border-gray-800 shrink-0 space-y-2">
+          {/* Dark mode toggle */}
+          <button
+            onClick={toggleTheme}
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs transition-colors ${
+              isDark ? 'bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+            }`}
+          >
+            {isDark ? <Sun size={14} /> : <Moon size={14} />}
+            {sidebarOpen && <span>{isDark ? 'Light mode' : 'Dark mode'}</span>}
+          </button>
+
           {sidebarOpen ? (
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs text-gray-500 min-w-0">

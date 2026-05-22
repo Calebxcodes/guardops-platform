@@ -115,6 +115,51 @@ router.get('/financial', async (req: Request, res: Response) => {
   res.json({ monthlyRevenue, revenueByClient, monthlyPayroll, guardUtilization })
 })
 
+// ── Active guards currently on duty (clocked in) ─────────────────────────────
+router.get('/active-guards', async (req: Request, res: Response) => {
+  try {
+    const { rows } = await query(`
+      SELECT DISTINCT ON (g.id)
+        g.id, g.first_name, g.last_name, g.status,
+        s.name as site_name,
+        ce.created_at as clock_in_time
+      FROM guards g
+      LEFT JOIN clock_events ce ON ce.guard_id = g.id AND ce.type = 'clock_in'
+      LEFT JOIN shifts sh ON sh.id = ce.shift_id
+      LEFT JOIN sites s ON s.id = sh.site_id
+      WHERE g.status = 'on-duty' AND g.active = 1 AND g.deleted_at IS NULL
+      ORDER BY g.id, ce.created_at DESC
+    `)
+    res.json({ success: true, guards: rows, total: rows.length })
+  } catch (err: any) {
+    res.json({ success: true, guards: [], total: 0 })
+  }
+})
+
+// ── Sites with no guards currently on duty ────────────────────────────────────
+router.get('/uncovered-shifts', async (req: Request, res: Response) => {
+  try {
+    const { rows } = await query(`
+      SELECT s.id, s.name, s.address
+      FROM sites s
+      WHERE s.active = 1
+        AND NOT EXISTS (
+          SELECT 1 FROM shifts sh
+          JOIN guards g ON g.id = sh.guard_id
+          WHERE sh.site_id = s.id
+            AND sh.status IN ('assigned','active')
+            AND sh.start_time::date = CURRENT_DATE
+            AND g.status = 'on-duty'
+        )
+      ORDER BY s.name
+      LIMIT 20
+    `)
+    res.json({ success: true, uncovered: rows })
+  } catch (err: any) {
+    res.json({ success: true, uncovered: [] })
+  }
+})
+
 // ── Audit log — admin-only, paginated ────────────────────────────────────────
 router.get('/audit-log', async (req: Request, res: Response) => {
   const page  = Math.max(1, parseInt(req.query.page  as string) || 1)
