@@ -696,6 +696,86 @@ export async function initSchema() {
   } catch {
     // public.tenants may not exist yet on a fresh database — safe to skip
   }
+
+  // ── Admin panel spec fixes (May 2026) ────────────────────────────────────────
+  // guard_hourly_rate on sites: stores what guards are paid (separate from client bill)
+  // push_subscriptions: enables web push for guards
+  // checklist_templates + shift_check_items: per-site hourly check templates
+  // documents: file library per site
+  // audit_log, rate_limit_hits: compliance + rate limiting
+  try {
+    const { rows: tenants } = await pool.query(
+      `SELECT id FROM public.tenants WHERE status != 'deleted'`
+    )
+    for (const t of tenants) {
+      await pool.query(`
+        ALTER TABLE IF EXISTS tenant_${t.id}.sites
+          ADD COLUMN IF NOT EXISTS guard_hourly_rate REAL DEFAULT 0;
+
+        CREATE TABLE IF NOT EXISTS tenant_${t.id}.push_subscriptions (
+          id         SERIAL PRIMARY KEY,
+          guard_id   INTEGER NOT NULL REFERENCES tenant_${t.id}.guards(id) ON DELETE CASCADE,
+          endpoint   TEXT NOT NULL,
+          p256dh     TEXT NOT NULL,
+          auth       TEXT NOT NULL,
+          user_agent TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          UNIQUE (guard_id, endpoint)
+        );
+
+        CREATE TABLE IF NOT EXISTS tenant_${t.id}.checklist_templates (
+          id          SERIAL PRIMARY KEY,
+          site_id     INTEGER NOT NULL REFERENCES tenant_${t.id}.sites(id) ON DELETE CASCADE,
+          label       TEXT NOT NULL,
+          description TEXT,
+          sort_order  INTEGER NOT NULL DEFAULT 0,
+          created_at  TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS tenant_${t.id}.shift_check_items (
+          id          SERIAL PRIMARY KEY,
+          check_id    INTEGER NOT NULL REFERENCES tenant_${t.id}.shift_checks(id) ON DELETE CASCADE,
+          template_id INTEGER REFERENCES tenant_${t.id}.checklist_templates(id) ON DELETE SET NULL,
+          label       TEXT NOT NULL,
+          checked     INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS tenant_${t.id}.documents (
+          id               SERIAL PRIMARY KEY,
+          name             TEXT NOT NULL,
+          original_name    TEXT NOT NULL,
+          category         TEXT NOT NULL DEFAULT 'general',
+          site_id          INTEGER REFERENCES tenant_${t.id}.sites(id) ON DELETE SET NULL,
+          uploaded_by      INTEGER REFERENCES tenant_${t.id}.admin_users(id) ON DELETE SET NULL,
+          file_path        TEXT NOT NULL,
+          mime_type        TEXT,
+          size             INTEGER DEFAULT 0,
+          description      TEXT,
+          is_guard_visible INTEGER NOT NULL DEFAULT 1,
+          created_at       TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS tenant_${t.id}.audit_log (
+          id            SERIAL PRIMARY KEY,
+          user_type     TEXT NOT NULL,
+          user_id       INTEGER,
+          action        TEXT NOT NULL,
+          resource_type TEXT,
+          resource_id   INTEGER,
+          ip_address    TEXT,
+          extra         TEXT,
+          created_at    TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS tenant_${t.id}.rate_limit_hits (
+          key    TEXT NOT NULL,
+          hit_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+      `)
+    }
+  } catch (err) {
+    console.error('[Migration] May-2026 admin spec fixes failed (non-fatal):', err)
+  }
 }
 
 // ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────
