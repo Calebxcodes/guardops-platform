@@ -4,9 +4,10 @@ import { guardsApi } from '../../api'
 import StatusBadge from '../../components/StatusBadge'
 import Modal from '../../components/Modal'
 import DeleteGuardModal from '../../components/DeleteGuardModal'
-import { Plus, Search, Edit, Trash2, AlertTriangle, Filter, MoreVertical } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, AlertTriangle, Filter, MoreVertical, Clock } from 'lucide-react'
 import { differenceInDays, parseISO } from 'date-fns'
 import GuardForm from './GuardForm'
+import PendingApprovals from './PendingApprovals'
 import { useAuthStore, type RoleType } from '../../store/authStore'
 import { canPerform } from '../../utils/permissions'
 
@@ -24,6 +25,7 @@ export default function Guards() {
   const [editing, setEditing]         = useState<Guard | null>(null)
   const [deletingGuard, setDeletingGuard] = useState<Guard | null>(null)
   const [openMenuId, setOpenMenuId]   = useState<number | null>(null)
+  const [activeTab, setActiveTab]     = useState<'active' | 'pending'>('active')
   const menuRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
@@ -139,6 +141,30 @@ export default function Guards() {
         )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
+        {[
+          { id: 'active',  label: 'Active Guards' },
+          { id: 'pending', label: 'Pending Approvals', icon: Clock },
+        ].map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id as 'active' | 'pending')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === id
+                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            {Icon && <Icon size={14} />}
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'pending' && <PendingApprovals />}
+
+      {activeTab === 'active' && <>
       {/* Filters */}
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -280,6 +306,8 @@ export default function Guards() {
           </div>
         </>
       )}
+
+      </>}
 
       {/* Edit modal */}
       {showForm && (

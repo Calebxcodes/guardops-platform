@@ -23,7 +23,14 @@ export default function Login() {
       setAuth(token, guard)
       navigate('/', { replace: true })
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed. Please check your credentials.')
+      const status = err.response?.data?.status
+      if (status === 'pending') {
+        setError('Your account is pending admin activation. You will receive an email once approved.')
+      } else if (status === 'rejected') {
+        setError('Your account application was not approved. Please contact your company administrator.')
+      } else {
+        setError(err.response?.data?.error || 'Login failed. Please check your credentials.')
+      }
     } finally {
       setLoading(false)
     }
@@ -80,10 +87,16 @@ export default function Login() {
           {loading ? <><Loader size={18} className="animate-spin" /> Signing in...</> : 'Sign In'}
         </button>
 
-        <div className="text-center mt-4">
-          <Link to="/forgot-password" className="text-brand-400 hover:text-brand-300 text-sm transition-colors">
+        <div className="text-center mt-4 space-y-2">
+          <Link to="/forgot-password" className="text-brand-400 hover:text-brand-300 text-sm transition-colors block">
             Forgot your password?
           </Link>
+          <p className="text-white/30 text-xs">
+            New guard?{' '}
+            <Link to="/signup" className="text-brand-400 hover:text-brand-300">
+              Create an account
+            </Link>
+          </p>
         </div>
 
         <InstallPromptButton className="mt-2" />

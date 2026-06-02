@@ -40,11 +40,24 @@ export const authApi = {
 export const shiftsApi = {
   today: () => api.get('/guard/shifts/today').then(r => r.data),
   upcoming: () => api.get('/guard/shifts/upcoming').then(r => r.data),
-  history: () => api.get('/guard/shifts/history').then(r => r.data),
+  history: (startDate?: string, endDate?: string) =>
+    api.get('/guard/shifts/history', { params: { startDate, endDate } }).then(r => r.data),
+  historyExportCsv: async (startDate?: string, endDate?: string) => {
+    const res = await api.get('/guard/shifts/history', {
+      params: { format: 'csv', startDate, endDate },
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'shift-history.csv'; a.click()
+    URL.revokeObjectURL(url)
+  },
   clockIn: (data: { shift_id: number; lat?: number; lng?: number; accuracy?: number; notes?: string; face_verified?: boolean }) =>
     api.post('/guard/shifts/clock-in', data).then(r => r.data),
   clockOut: (data: { shift_id: number; lat?: number; lng?: number; accuracy?: number; notes?: string; face_verified?: boolean }) =>
     api.post('/guard/shifts/clock-out', data).then(r => r.data),
+  breakStart: (shiftId: number) => api.post(`/guard/shifts/${shiftId}/break-start`, {}).then(r => r.data),
+  breakEnd:   (shiftId: number) => api.post(`/guard/shifts/${shiftId}/break-end`,   {}).then(r => r.data),
   clockEvents: (shiftId: number) => api.get(`/guard/shifts/${shiftId}/clock-events`).then(r => r.data),
   getChecks:       (shiftId: number) => api.get(`/guard/shifts/${shiftId}/checks`).then(r => r.data),
   getChecklist:     (shiftId: number) => api.get(`/guard/shifts/${shiftId}/checklist`).then(r => r.data),
@@ -138,4 +151,25 @@ export const profileApi = {
   getFaceDescriptor: () => api.get('/guard/profile/face-descriptor').then(r => r.data),
   saveFaceDescriptor: (descriptor: number[]) => api.put('/guard/profile/face-descriptor', { descriptor }).then(r => r.data),
   deleteFaceDescriptor: () => api.delete('/guard/profile/face-descriptor').then(r => r.data),
+}
+
+export const guardSignupApi = {
+  listTenants: (): Promise<{ tenants: { id: number; name: string; slug: string }[] }> =>
+    api.get('/tenants/public').then(r => r.data),
+  signup: (data: {
+    tenantId: number
+    email: string
+    password: string
+    firstName: string
+    lastName: string
+    phone?: string
+    dateOfBirth?: string
+    address?: string
+    siaBadge?: {
+      sia_license_number?: string
+      sia_expiry_date?: string
+      badge_number?: string
+      card_type?: string
+    }
+  }) => api.post('/guard/signup', data).then(r => r.data),
 }

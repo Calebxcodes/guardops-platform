@@ -36,6 +36,76 @@ router.get('/', async (req: Request, res: Response) => {
   }
 })
 
+// ── Pending guards (self-signed up, awaiting admin activation) ───────────────
+
+router.get('/pending', async (req: Request, res: Response) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, first_name, last_name, email, phone, date_of_birth, created_at
+       FROM guards WHERE status = 'pending' AND active = 1 AND deleted_at IS NULL
+       ORDER BY created_at DESC`,
+      [],
+      tid(req)
+    )
+    res.json({ success: true, pending: rows })
+  } catch (err: any) {
+    console.error('[guards GET /pending]', err)
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+router.put('/:id/activate', requirePermission('guards', 'update'), async (req: Request, res: Response) => {
+  try {
+    const guardId = parseInt(req.params.id)
+    await query(
+      "UPDATE guards SET status = 'off-duty' WHERE id = $1",
+      [guardId],
+      tid(req)
+    )
+    // Send activation email
+    const { rows } = await query('SELECT email, first_name FROM guards WHERE id = $1', [guardId], tid(req))
+    if (rows[0]) {
+      const { sendGuardWelcomeEmail: _w, ...emailMod } = await import('../services/email') as any
+      // Use the raw send helper via a simple activation email
+      try {
+        const resendMod = await import('resend')
+        const resendClient = process.env.RESEND_API_KEY ? new resendMod.Resend(process.env.RESEND_API_KEY) : null
+        if (resendClient) {
+          await resendClient.emails.send({
+            from: process.env.FROM_EMAIL || 'noreply@strondis.com',
+            to: rows[0].email,
+            subject: 'Your Strondis Guard Account Has Been Activated',
+            html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+              <h2>Account Activated</h2>
+              <p>Hi ${rows[0].first_name}, your account has been activated. You can now log in and access your shifts.</p>
+              <a href="${process.env.GUARD_APP_URL || 'https://guard.strondis.com'}/login" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Sign In →</a>
+            </div>`,
+          })
+        }
+      } catch { /* email not critical */ }
+    }
+    res.json({ success: true })
+  } catch (err: any) {
+    console.error('[guards PUT /:id/activate]', err)
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+router.put('/:id/reject', requirePermission('guards', 'update'), async (req: Request, res: Response) => {
+  try {
+    const guardId = parseInt(req.params.id)
+    await query(
+      "UPDATE guards SET status = 'rejected' WHERE id = $1",
+      [guardId],
+      tid(req)
+    )
+    res.json({ success: true })
+  } catch (err: any) {
+    console.error('[guards PUT /:id/reject]', err)
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
 // ── Deleted guards list (must be before /:id) ─────────────────────────────────
 
 router.get('/deleted', async (req: Request, res: Response) => {

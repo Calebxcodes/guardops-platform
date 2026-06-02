@@ -54,6 +54,8 @@ import badgesRouter from './routes/badges'
 import taxDocumentsRouter from './routes/taxDocuments'
 import { runBillingCron } from './services/billingCron'
 import { runRenewalCron } from './services/renewalCron'
+import guardAuthRouter from './routes/guardAuth'
+import { processAutoClockouts } from './services/autoClockout'
 
 // ── Environment validation (fail fast if critical vars are missing) ────────
 const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET']
@@ -250,6 +252,9 @@ app.use('/api/documents',        requireAdmin, documentsRouter)
 // ── Multi-tenant signup (public — no auth required) ───────────────────────
 app.use('/api', signupRouter)
 
+// ── Guard self-signup + public tenant list (Fix #7, #8) ──────────────────
+app.use('/api', guardAuthRouter)
+
 // ── Feature flags (public — tenant-aware) ─────────────────────────────────
 app.use('/api', featureFlagsRouter)
 app.use('/api/tenant', tenantAccountRouter)
@@ -322,6 +327,12 @@ async function start() {
   }
 
   await ensureDefaultAdmin()
+
+  // Auto clock-out cron — Fix #5: every 5 minutes, processes shifts 30+ min past end time
+  cron.schedule('*/5 * * * *', () => {
+    processAutoClockouts().catch(e => console.error('[AutoClockout] cron error:', e))
+  })
+  console.log('Auto clock-out cron scheduled (every 5 min)')
 
   // Daily alert cron — runs every day at 08:00 UTC
   cron.schedule('0 8 * * *', () => {

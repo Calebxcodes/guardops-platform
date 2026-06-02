@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { format, formatDistanceToNow, isPast, isFuture, differenceInMinutes } from 'date-fns'
 import {
   MapPin, Clock, ChevronRight, Bell, AlertTriangle,
-  LogIn, LogOut, FileText, MessageCircle, Navigation, ClipboardCheck
+  LogIn, LogOut, FileText, MessageCircle, Navigation, ClipboardCheck, Coffee
 } from 'lucide-react'
 import { shiftsApi } from '../../api'
 import { useAuthStore } from '../../store/authStore'
@@ -13,6 +13,7 @@ import StatusBadge from '../../components/ui/StatusBadge'
 import Card from '../../components/ui/Card'
 import ClockInModal from './ClockInModal'
 import HourlyChecksModal from '../../components/HourlyChecksModal'
+import { formatLondon12 } from '../../utils/time'
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
 
@@ -21,8 +22,10 @@ export default function Dashboard() {
   const guard = useAuthStore(s => s.guard)
   const { todayShift, setTodayShift, upcomingShifts, setUpcomingShifts } = useShiftStore()
   const [loading, setLoading] = useState(true)
-  const [showClockIn, setShowClockIn] = useState(false)
-  const [clockAction, setClockAction] = useState<'in' | 'out'>('in')
+  const [showClockIn,  setShowClockIn]  = useState(false)
+  const [clockAction,  setClockAction]  = useState<'in' | 'out'>('in')
+  const [onBreak,      setOnBreak]      = useState(false)
+  const [breakLoading, setBreakLoading] = useState(false)
   const [now, setNow] = useState(new Date())
 
   // Hourly checks state
@@ -102,6 +105,21 @@ export default function Dashboard() {
     setShowClockIn(true)
   }
 
+  const handleBreakToggle = async () => {
+    if (!todayShift) return
+    setBreakLoading(true)
+    try {
+      if (!onBreak) {
+        await shiftsApi.breakStart(todayShift.id)
+        setOnBreak(true)
+      } else {
+        await shiftsApi.breakEnd(todayShift.id)
+        setOnBreak(false)
+      }
+    } catch { /* ignore — break status is best-effort */ }
+    finally { setBreakLoading(false) }
+  }
+
   return (
     <div className="min-h-screen bg-surface px-4 pt-14 pb-4 space-y-5">
       {/* Header */}
@@ -156,7 +174,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 mb-3">
             <Clock size={15} className="text-brand-400" />
             <span className="text-white font-medium">
-              {format(new Date(todayShift.start_time), 'h:mm a')} — {format(new Date(todayShift.end_time), 'h:mm a')}
+              {formatLondon12(todayShift.start_time)} — {formatLondon12(todayShift.end_time)}
             </span>
             {estimatedPay && <span className="text-white/40 text-sm ml-auto">£{estimatedPay}</span>}
           </div>
@@ -201,10 +219,10 @@ export default function Dashboard() {
           )}
 
           {todayShift.status === 'active' && (
-            <div className="bg-green-900/30 border border-green-700/30 rounded-xl px-4 py-2.5 mb-4">
+            <div className={`rounded-xl px-4 py-2.5 mb-4 ${onBreak ? 'bg-amber-900/30 border border-amber-700/30' : 'bg-green-900/30 border border-green-700/30'}`}>
               <div className="flex items-center justify-between">
-                <p className="text-green-300 text-sm font-medium text-center flex-1">
-                  ● On duty — {formatDistanceToNow(new Date(todayShift.start_time))} elapsed
+                <p className={`text-sm font-medium text-center flex-1 ${onBreak ? 'text-amber-300' : 'text-green-300'}`}>
+                  {onBreak ? '⏸ On break' : '● On duty'} — {formatDistanceToNow(new Date(todayShift.start_time))} elapsed
                 </p>
                 {checksCountRef.current > 0 && (
                   <span className="text-green-400/60 text-xs ml-2">{checksCountRef.current} check{checksCountRef.current !== 1 ? 's' : ''} done</span>
@@ -223,12 +241,28 @@ export default function Dashboard() {
               </button>
             )}
             {todayShift.status === 'active' && (
-              <button
-                onClick={() => handleClockPress('out')}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl py-3 flex items-center justify-center gap-2"
-              >
-                <LogOut size={18} /> Clock Out
-              </button>
+              <>
+                <button
+                  onClick={handleBreakToggle}
+                  disabled={breakLoading}
+                  className={`flex-1 font-semibold rounded-xl py-3 flex items-center justify-center gap-2 transition-colors ${
+                    onBreak
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-amber-600 hover:bg-amber-700 text-white'
+                  }`}
+                >
+                  <Coffee size={16} />
+                  {onBreak ? 'End Break' : 'Break'}
+                </button>
+                <button
+                  onClick={() => handleClockPress('out')}
+                  disabled={onBreak}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-semibold rounded-xl py-3 flex items-center justify-center gap-2"
+                  title={onBreak ? 'End your break before clocking out' : undefined}
+                >
+                  <LogOut size={18} /> Clock Out
+                </button>
+              </>
             )}
             <button
               onClick={() => navigate('/map')}
@@ -324,7 +358,7 @@ function UpcomingShiftRow({ shift }: { shift: GuardShift }) {
       <div className="flex-1 min-w-0">
         <p className="font-medium text-white text-sm truncate">{shift.site_name}</p>
         <p className="text-white/40 text-xs">
-          {format(new Date(shift.start_time), 'h:mm a')} — {format(new Date(shift.end_time), 'h:mm a')}
+          {formatLondon12(shift.start_time)} — {formatLondon12(shift.end_time)}
         </p>
       </div>
       <StatusBadge status={shift.status} />

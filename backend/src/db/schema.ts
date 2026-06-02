@@ -218,7 +218,28 @@ export async function initSchema() {
     ALTER TABLE guards ADD COLUMN IF NOT EXISTS face_descriptor TEXT;
     ALTER TABLE clock_events ADD COLUMN IF NOT EXISTS face_verified INTEGER DEFAULT 0;
     ALTER TABLE sites ADD COLUMN IF NOT EXISTS geofence_radius INTEGER DEFAULT 183;
+    ALTER TABLE guards ADD COLUMN IF NOT EXISTS break_start_time TIMESTAMPTZ;
+    ALTER TABLE shifts ADD COLUMN IF NOT EXISTS auto_clocked_out INTEGER DEFAULT 0;
+    ALTER TABLE shifts ADD COLUMN IF NOT EXISTS actual_end_time TIMESTAMPTZ;
+    ALTER TABLE password_reset_tokens ADD COLUMN IF NOT EXISTS tenant_id INT;
   `)
+
+  // Apply same guard/shift column additions to all existing tenant schemas
+  try {
+    const { rows: tenants } = await pool.query(
+      "SELECT id FROM public.tenants WHERE status NOT IN ('deleted','archived')"
+    )
+    for (const t of tenants) {
+      const s = `tenant_${t.id}`
+      await pool.query(`
+        SET search_path TO ${s}, public;
+        ALTER TABLE guards ADD COLUMN IF NOT EXISTS break_start_time TIMESTAMPTZ;
+        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS auto_clocked_out INTEGER DEFAULT 0;
+        ALTER TABLE shifts ADD COLUMN IF NOT EXISTS actual_end_time TIMESTAMPTZ;
+        SET search_path TO public;
+      `)
+    }
+  } catch { /* tenants table may not exist yet on first run */ }
 
   // Hourly site checks table
   await pool.query(`

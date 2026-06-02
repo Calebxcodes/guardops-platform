@@ -7,20 +7,23 @@ import PWAPermissions from './components/PWAPermissions'
 import AppShell from './components/layout/AppShell'
 
 // Lazy-load all pages — each becomes its own JS chunk
-const Login          = lazy(() => import('./pages/Login'))
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
-const ResetPassword  = lazy(() => import('./pages/ResetPassword'))
-const Dashboard      = lazy(() => import('./pages/Dashboard'))
-const Schedule       = lazy(() => import('./pages/Schedule'))
-const Timesheet      = lazy(() => import('./pages/Timesheet'))
-const MapPage        = lazy(() => import('./pages/Map'))
-const TimeOff        = lazy(() => import('./pages/TimeOff'))
-const Messages       = lazy(() => import('./pages/Messages'))
-const Incidents      = lazy(() => import('./pages/Incidents'))
-const Profile        = lazy(() => import('./pages/Profile'))
-const DocumentsPage  = lazy(() => import('./pages/Documents'))
-const SecurityBadge  = lazy(() => import('./pages/SecurityBadge'))
-const TaxDocuments   = lazy(() => import('./pages/TaxDocuments'))
+const Login                = lazy(() => import('./pages/Login'))
+const ForgotPassword       = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword        = lazy(() => import('./pages/ResetPassword'))
+const SignupTenantSelect    = lazy(() => import('./pages/Auth/SignupTenantSelect'))
+const GuardSignupFlow      = lazy(() => import('./pages/Auth/GuardSignupFlow'))
+const Dashboard            = lazy(() => import('./pages/Dashboard'))
+const Schedule             = lazy(() => import('./pages/Schedule'))
+const Timesheet            = lazy(() => import('./pages/Timesheet'))
+const History              = lazy(() => import('./pages/History'))
+const MapPage              = lazy(() => import('./pages/Map'))
+const TimeOff              = lazy(() => import('./pages/TimeOff'))
+const Messages             = lazy(() => import('./pages/Messages'))
+const Incidents            = lazy(() => import('./pages/Incidents'))
+const Profile              = lazy(() => import('./pages/Profile'))
+const DocumentsPage        = lazy(() => import('./pages/Documents'))
+const SecurityBadge        = lazy(() => import('./pages/SecurityBadge'))
+const TaxDocuments         = lazy(() => import('./pages/TaxDocuments'))
 
 // Minimal spinner — matches the dark app theme
 function PageLoader() {
@@ -71,6 +74,8 @@ export default function App() {
           <Route path="/login"           element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password"  element={<ResetPassword />} />
+          <Route path="/signup"          element={<SignupTenantSelect />} />
+          <Route path="/signup/guard"    element={<GuardSignupFlow />} />
           <Route
             path="/"
             element={
@@ -81,6 +86,7 @@ export default function App() {
           >
             <Route index                 element={<Dashboard />} />
             <Route path="schedule"       element={<Schedule />} />
+            <Route path="history"        element={<History />} />
             <Route path="timesheet"      element={<Timesheet />} />
             <Route path="map"            element={<MapPage />} />
             <Route path="time-off"       element={<TimeOff />} />

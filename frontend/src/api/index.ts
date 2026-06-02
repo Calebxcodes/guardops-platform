@@ -31,14 +31,17 @@ api.interceptors.response.use(
 )
 
 export const guardsApi = {
-  list:   ()              => api.get('/guards').then(r => r.data),
-  get:    (id: number)    => api.get(`/guards/${id}`).then(r => r.data),
-  create: (data: any)     => api.post('/guards', data).then(r => r.data),
-  update: (id: number, data: any) => api.put(`/guards/${id}`, data).then(r => r.data),
-  delete: (id: number, password: string) =>
+  list:    ()              => api.get('/guards').then(r => r.data),
+  get:     (id: number)   => api.get(`/guards/${id}`).then(r => r.data),
+  create:  (data: any)    => api.post('/guards', data).then(r => r.data),
+  update:  (id: number, data: any) => api.put(`/guards/${id}`, data).then(r => r.data),
+  delete:  (id: number, password: string) =>
     api.delete(`/guards/${id}`, { data: { password } }).then(r => r.data),
-  listDeleted: () => api.get('/guards/deleted').then(r => r.data),
+  listDeleted: ()           => api.get('/guards/deleted').then(r => r.data),
   restore:     (id: number) => api.post(`/guards/${id}/restore`).then(r => r.data),
+  listPending: ()           => api.get('/guards/pending').then(r => r.data),
+  activate:    (id: number) => api.put(`/guards/${id}/activate`, {}).then(r => r.data),
+  reject:      (id: number) => api.put(`/guards/${id}/reject`, {}).then(r => r.data),
 }
 
 export const clientsApi = {

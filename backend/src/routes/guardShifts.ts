@@ -46,14 +46,48 @@ router.get('/upcoming', async (req: AuthRequest, res: Response) => {
 })
 
 router.get('/history', async (req: AuthRequest, res: Response) => {
+  const { startDate, endDate, format: fmt } = req.query as Record<string, string>
+  const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const end   = endDate   ? new Date(endDate)   : new Date()
+
   const { rows } = await query(`
-    SELECT sh.*, s.name as site_name, c.name as client_name
+    SELECT sh.*, s.name as site_name, c.name as client_name,
+      COALESCE(sh.hourly_rate, s.guard_hourly_rate, s.hourly_rate, 0) as effective_rate,
+      EXTRACT(EPOCH FROM (COALESCE(sh.actual_end_time, sh.end_time) - sh.start_time)) / 3600 as hours_worked
     FROM shifts sh
     JOIN sites s ON s.id = sh.site_id
     JOIN clients c ON c.id = s.client_id
-    WHERE sh.guard_id = $1 AND sh.start_time < NOW()
-    ORDER BY sh.start_time DESC LIMIT 30
-  `, [req.guardId])
+    WHERE sh.guard_id = $1
+      AND sh.start_time >= $2
+      AND sh.start_time <= $3
+      AND sh.status IN ('completed', 'active')
+    ORDER BY sh.start_time DESC
+    LIMIT 200
+  `, [req.guardId, start.toISOString(), end.toISOString()])
+
+  if (fmt === 'csv') {
+    const lines = ['Date,Site,Client,Start,End,Hours,Rate,Est. Pay,Status,Auto Clock-out']
+    for (const sh of rows) {
+      const hrs = parseFloat(sh.hours_worked || '0').toFixed(2)
+      const pay = (parseFloat(hrs) * parseFloat(sh.effective_rate || '0')).toFixed(2)
+      lines.push([
+        new Date(sh.start_time).toLocaleDateString('en-GB'),
+        `"${sh.site_name}"`,
+        `"${sh.client_name}"`,
+        new Date(sh.start_time).toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' }),
+        new Date(sh.actual_end_time || sh.end_time).toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' }),
+        hrs,
+        sh.effective_rate,
+        `£${pay}`,
+        sh.status,
+        sh.auto_clocked_out ? 'Yes' : 'No'
+      ].join(','))
+    }
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', 'attachment; filename="shift-history.csv"')
+    return res.send(lines.join('\n'))
+  }
+
   res.json(rows)
 })
 
@@ -209,12 +243,55 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
     const overtimeHours = Math.max(0, hoursWorked - 8)
     const today = new Date().toISOString().split('T')[0]
     await query(`
-      INSERT INTO timesheets (guard_id, shift_id, period_start, period_end, regular_hours, overtime_hours, total_hours, status, source)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,'draft','mobile')
+      INSERT INTO timesheets (guard_id, shift_id, period_start, period_end, regular_hours, overtime_hours, total_hours, status, source, submitted_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,'submitted','mobile',NOW())
     `, [req.guardId, shift_id, today, today, regularHours, overtimeHours, hoursWorked])
+
+    // Notify guard via push that timesheet was submitted
+    try {
+      const { notifyGuard } = await import('../services/push')
+      await notifyGuard(req.guardId!, {
+        title: 'Timesheet Submitted',
+        body: `Your timesheet for today (${hoursWorked.toFixed(1)}h) has been auto-submitted.`,
+        url: '/timesheet',
+        tag: `timesheet-submitted-${shift_id}`,
+      })
+    } catch { /* push not critical */ }
   }
 
-  res.json({ success: true, hours_worked: hoursWorked, clocked_out_at: new Date().toISOString() })
+  res.json({ success: true, hours_worked: hoursWorked, clocked_out_at: effectiveClockOut.toISOString() })
+})
+
+// ── Break tracking ────────────────────────────────────────────────────────────
+
+router.post('/:shiftId/break-start', async (req: AuthRequest, res: Response) => {
+  const { rows: shiftRows } = await query(
+    'SELECT id FROM shifts WHERE id = $1 AND guard_id = $2 AND status = $3',
+    [req.params.shiftId, req.guardId, 'active']
+  )
+  if (!shiftRows[0]) return res.status(404).json({ error: 'Active shift not found' })
+
+  await query(
+    "UPDATE guards SET status = 'on-break', break_start_time = NOW() WHERE id = $1",
+    [req.guardId]
+  )
+  pushToAdmins('guard-status-change', { guard_id: req.guardId, status: 'on-break', shift_id: req.params.shiftId })
+  res.json({ success: true, status: 'on-break' })
+})
+
+router.post('/:shiftId/break-end', async (req: AuthRequest, res: Response) => {
+  const { rows: shiftRows } = await query(
+    'SELECT id FROM shifts WHERE id = $1 AND guard_id = $2',
+    [req.params.shiftId, req.guardId]
+  )
+  if (!shiftRows[0]) return res.status(404).json({ error: 'Shift not found' })
+
+  await query(
+    "UPDATE guards SET status = 'on-duty', break_start_time = NULL WHERE id = $1",
+    [req.guardId]
+  )
+  pushToAdmins('guard-status-change', { guard_id: req.guardId, status: 'on-duty', shift_id: req.params.shiftId })
+  res.json({ success: true, status: 'on-duty' })
 })
 
 router.get('/:shiftId/clock-events', async (req: AuthRequest, res: Response) => {

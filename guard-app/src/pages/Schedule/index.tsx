@@ -5,6 +5,7 @@ import { shiftsApi } from '../../api'
 import { GuardShift } from '../../types'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Card from '../../components/ui/Card'
+import { formatLondon12, isSameLondonDay } from '../../utils/time'
 
 const statusColors: Record<string, string> = {
   assigned: 'bg-blue-400',
@@ -30,7 +31,7 @@ export default function Schedule() {
   const days = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) })
   const startDay = startOfMonth(month).getDay()
 
-  const selectedShifts = shifts.filter(s => isSameDay(new Date(s.start_time), selected))
+  const selectedShifts = shifts.filter(s => isSameLondonDay(s.start_time, selected))
 
   const estimatePay = (s: GuardShift) => {
     const hrs = (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / 3600000
@@ -64,7 +65,7 @@ export default function Schedule() {
         <div className="grid grid-cols-7 gap-1">
           {Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`} />)}
           {days.map(day => {
-            const dayShifts = shifts.filter(s => isSameDay(new Date(s.start_time), day))
+            const dayShifts = shifts.filter(s => isSameLondonDay(s.start_time, day))
             const isSelected = isSameDay(day, selected)
             return (
               <button
@@ -118,7 +119,7 @@ export default function Schedule() {
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2 text-white/60">
                     <Clock size={14} className="text-brand-400" />
-                    {format(new Date(shift.start_time), 'h:mm a')} – {format(new Date(shift.end_time), 'h:mm a')}
+                    {formatLondon12(shift.start_time)} – {formatLondon12(shift.end_time)}
                   </div>
                   {shift.site_address && (
                     <div className="flex items-center gap-2 text-white/60">

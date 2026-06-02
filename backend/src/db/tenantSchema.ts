@@ -60,6 +60,7 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
         face_descriptor  TEXT,
         active           INTEGER DEFAULT 1,
         deleted_at       TIMESTAMPTZ,
+        break_start_time TIMESTAMPTZ,
         created_at       TIMESTAMPTZ DEFAULT NOW()
       );
 
@@ -100,16 +101,18 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
       );
 
       CREATE TABLE IF NOT EXISTS shifts (
-        id           SERIAL PRIMARY KEY,
-        site_id      INTEGER REFERENCES sites(id),
-        guard_id     INTEGER REFERENCES guards(id),
-        start_time   TIMESTAMPTZ NOT NULL,
-        end_time     TIMESTAMPTZ NOT NULL,
-        status       TEXT DEFAULT 'unassigned',
-        hourly_rate  REAL,
-        break_minutes INTEGER DEFAULT 30,
-        notes        TEXT,
-        created_at   TIMESTAMPTZ DEFAULT NOW()
+        id               SERIAL PRIMARY KEY,
+        site_id          INTEGER REFERENCES sites(id),
+        guard_id         INTEGER REFERENCES guards(id),
+        start_time       TIMESTAMPTZ NOT NULL,
+        end_time         TIMESTAMPTZ NOT NULL,
+        status           TEXT DEFAULT 'unassigned',
+        hourly_rate      REAL,
+        break_minutes    INTEGER DEFAULT 30,
+        notes            TEXT,
+        auto_clocked_out INTEGER DEFAULT 0,
+        actual_end_time  TIMESTAMPTZ,
+        created_at       TIMESTAMPTZ DEFAULT NOW()
       );
 
       CREATE TABLE IF NOT EXISTS clock_events (
