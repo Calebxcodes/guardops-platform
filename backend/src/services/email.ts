@@ -31,7 +31,7 @@ export async function sendPasswordReset(to: string, token: string, userType: 'ad
       </div>
       <h2 style="color:#111827;margin:0 0 8px">Reset your password</h2>
       <p style="color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 24px">
-        You requested a password reset for your Strondis account. Click the button below to set a new password — this link expires in <strong>1 hour</strong>.
+        You requested a password reset for your Strondis account. Click the button below to set a new password — this link expires in <strong>24 hours</strong>.
       </p>
       <a href="${link}" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px">
         Reset Password →

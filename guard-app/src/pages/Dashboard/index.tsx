@@ -24,8 +24,15 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [showClockIn,  setShowClockIn]  = useState(false)
   const [clockAction,  setClockAction]  = useState<'in' | 'out'>('in')
-  const [onBreak,      setOnBreak]      = useState(false)
+  const updateGuard    = useAuthStore(s => s.updateGuard)
+  const [onBreak,      setOnBreak]      = useState(() => guard?.status === 'on-break')
   const [breakLoading, setBreakLoading] = useState(false)
+
+  // Keep onBreak in sync whenever the guard record updates (e.g. after /me refresh on mount)
+  useEffect(() => {
+    if (guard?.status === 'on-break') setOnBreak(true)
+    else if (guard?.status === 'on-duty' || guard?.status === 'off-duty') setOnBreak(false)
+  }, [guard?.status])
   const [now, setNow] = useState(new Date())
 
   // Hourly checks state
@@ -112,9 +119,11 @@ export default function Dashboard() {
       if (!onBreak) {
         await shiftsApi.breakStart(todayShift.id)
         setOnBreak(true)
+        updateGuard({ status: 'on-break' })
       } else {
         await shiftsApi.breakEnd(todayShift.id)
         setOnBreak(false)
+        updateGuard({ status: 'on-duty' })
       }
     } catch { /* ignore — break status is best-effort */ }
     finally { setBreakLoading(false) }

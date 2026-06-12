@@ -31,5 +31,5 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
 export function signToken(guardId: number, email: string, tenantId?: number) {
   const payload: any = { guardId, email }
   if (tenantId) payload.tenantId = tenantId
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '4h' })
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' })
 }

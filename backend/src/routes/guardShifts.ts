@@ -172,6 +172,12 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
   `, [shift_id, req.guardId, DEFAULT_GEOFENCE_METERS])
   if (!shiftRows[0]) return res.status(404).json({ error: 'Shift not found' })
 
+  // Block clock-out while on break
+  const { rows: breakRows } = await query('SELECT status FROM guards WHERE id = $1', [req.guardId])
+  if (breakRows[0]?.status === 'on-break') {
+    return res.status(400).json({ error: 'End your break before clocking out.' })
+  }
+
   // Geofence check
   const shift = shiftRows[0]
   const siteLat = shift.site_lat != null ? parseFloat(shift.site_lat) : null
@@ -257,6 +263,13 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
         tag: `timesheet-submitted-${shift_id}`,
       })
     } catch { /* push not critical */ }
+
+    // Notify admins that a new timesheet was submitted
+    pushToAdmins('timesheet-submitted', {
+      guard_id: req.guardId,
+      shift_id,
+      hours_worked: hoursWorked,
+    })
   }
 
   res.json({ success: true, hours_worked: hoursWorked, clocked_out_at: effectiveClockOut.toISOString() })

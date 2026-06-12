@@ -74,7 +74,7 @@ async function processPublicSchema(): Promise<void> {
   const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
 
   const { rows } = await pool.query(`
-    SELECT sh.id, sh.guard_id, sh.end_time
+    SELECT sh.id, sh.guard_id, sh.end_time, sh.hourly_rate
     FROM shifts sh
     WHERE sh.end_time <= $1
       AND sh.status = 'active'
@@ -87,6 +87,27 @@ async function processPublicSchema(): Promise<void> {
       UPDATE shifts SET status = 'completed', auto_clocked_out = 1, actual_end_time = $1 WHERE id = $2
     `, [now.toISOString(), shift.id])
     await pool.query("UPDATE guards SET status = 'off-duty' WHERE id = $1", [shift.guard_id])
+
+    // Create timesheet if missing (mirrors processForTenant)
+    const { rows: existingTs } = await pool.query(
+      'SELECT id FROM timesheets WHERE guard_id = $1 AND shift_id = $2',
+      [shift.guard_id, shift.id]
+    )
+    if (!existingTs[0]) {
+      const { rows: ciRows } = await pool.query(`
+        SELECT created_at FROM clock_events
+        WHERE shift_id = $1 AND guard_id = $2 AND type = 'clock_in'
+        ORDER BY created_at DESC LIMIT 1
+      `, [shift.id, shift.guard_id])
+      const clockIn = ciRows[0] ? new Date(ciRows[0].created_at) : new Date(shift.end_time)
+      const hoursWorked = Math.round(((now.getTime() - clockIn.getTime()) / 3600000) * 100) / 100
+      const today = now.toISOString().split('T')[0]
+      await pool.query(`
+        INSERT INTO timesheets (guard_id, shift_id, period_start, period_end, regular_hours, overtime_hours, total_hours, status, source, submitted_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,'submitted','auto_clockout',NOW())
+      `, [shift.guard_id, shift.id, today, today, Math.min(hoursWorked, 8), Math.max(0, hoursWorked - 8), hoursWorked])
+    }
+
     console.log(`[AutoClockout] public shift=${shift.id} guard=${shift.guard_id} auto-clocked-out`)
   }
 }

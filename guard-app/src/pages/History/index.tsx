@@ -58,9 +58,10 @@ export default function History() {
     return sum + hrs * rate
   }, 0)
 
-  // Calendar helpers
+  // Calendar helpers — week starts Monday (UK convention). getDay() returns 0=Sun…6=Sat;
+  // shift so Mon=0, …, Sun=6
   const days = eachDayOfInterval({ start: startOfMonth(calMonth), end: endOfMonth(calMonth) })
-  const startDay = startOfMonth(calMonth).getDay()
+  const startDay = (startOfMonth(calMonth).getDay() + 6) % 7
 
   return (
     <div className="min-h-screen bg-surface px-4 pt-14 pb-24 space-y-4">
@@ -195,7 +196,7 @@ export default function History() {
             </button>
           </div>
           <div className="grid grid-cols-7 mb-1">
-            {['S','M','T','W','T','F','S'].map((d, i) => (
+            {['M','T','W','T','F','S','S'].map((d, i) => (
               <div key={i} className="text-center text-white/30 text-xs py-1">{d}</div>
             ))}
           </div>
