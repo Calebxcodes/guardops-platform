@@ -797,6 +797,27 @@ export async function initSchema() {
   } catch (err) {
     console.error('[Migration] May-2026 admin spec fixes failed (non-fatal):', err)
   }
+
+  // ── Client default billing rates (Upgrade admin-panel billing) ───────────────
+  // hourly_rate: what the client is billed per hour (client-level default)
+  // guard_hourly_rate: what guards earn per hour (client-level default)
+  try {
+    await pool.query(`
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS hourly_rate REAL DEFAULT 0;
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS guard_hourly_rate REAL DEFAULT 0;
+    `)
+    const { rows: tenants } = await pool.query(
+      `SELECT id FROM public.tenants WHERE status != 'deleted'`
+    )
+    for (const t of tenants) {
+      await pool.query(`
+        ALTER TABLE IF EXISTS tenant_${t.id}.clients ADD COLUMN IF NOT EXISTS hourly_rate REAL DEFAULT 0;
+        ALTER TABLE IF EXISTS tenant_${t.id}.clients ADD COLUMN IF NOT EXISTS guard_hourly_rate REAL DEFAULT 0;
+      `)
+    }
+  } catch (err) {
+    console.error('[Migration] Client billing rates failed (non-fatal):', err)
+  }
 }
 
 // ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────

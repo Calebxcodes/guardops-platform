@@ -24,20 +24,21 @@ router.get('/:id', async (req: Request, res: Response) => {
 })
 
 router.post('/', async (req: Request, res: Response) => {
-  const { name, contact_name, contact_email, contact_phone, address, notes } = req.body
+  const { name, contact_name, contact_email, contact_phone, address, notes, hourly_rate, guard_hourly_rate } = req.body
   const { rows } = await query(`
-    INSERT INTO clients (name, contact_name, contact_email, contact_phone, address, notes)
-    VALUES ($1,$2,$3,$4,$5,$6) RETURNING *
-  `, [name, contact_name, contact_email, contact_phone, address, notes])
+    INSERT INTO clients (name, contact_name, contact_email, contact_phone, address, notes, hourly_rate, guard_hourly_rate)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
+  `, [name, contact_name, contact_email, contact_phone, address, notes, hourly_rate || 0, guard_hourly_rate || 0])
   res.status(201).json(rows[0])
 })
 
 router.put('/:id', async (req: Request, res: Response) => {
-  const { name, contact_name, contact_email, contact_phone, address, notes } = req.body
+  const { name, contact_name, contact_email, contact_phone, address, notes, hourly_rate, guard_hourly_rate } = req.body
   await query(`
-    UPDATE clients SET name=$1, contact_name=$2, contact_email=$3, contact_phone=$4, address=$5, notes=$6
-    WHERE id=$7
-  `, [name, contact_name, contact_email, contact_phone, address, notes, req.params.id])
+    UPDATE clients SET name=$1, contact_name=$2, contact_email=$3, contact_phone=$4, address=$5, notes=$6,
+      hourly_rate=$7, guard_hourly_rate=$8
+    WHERE id=$9
+  `, [name, contact_name, contact_email, contact_phone, address, notes, hourly_rate || 0, guard_hourly_rate || 0, req.params.id])
   const { rows } = await query('SELECT * FROM clients WHERE id = $1', [req.params.id])
   res.json(rows[0])
 })
