@@ -371,9 +371,10 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
       ALTER TABLE sites ADD COLUMN IF NOT EXISTS guard_hourly_rate REAL DEFAULT 0
     `)
 
-    await client.query(`SET search_path TO public`)
     console.log(`[Tenant Schema] Initialized ${schemaName}`)
   } finally {
-    client.release()
+    // Discard rather than return to the pool: this session's search_path was
+    // pointed at the tenant, and a failure above would have skipped any reset.
+    client.release(true)
   }
 }

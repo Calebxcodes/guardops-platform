@@ -1,23 +1,12 @@
 import crypto from 'crypto'
-import { pool as sharedPool, tenantStorage } from './pool'
+import { pool as sharedPool, query as tenantQuery } from './pool'
 
 // schema.ts re-exports the shared pool so callers that import pool from here still work
 export const pool = sharedPool
 
+// Single tenant-scoping implementation lives in pool.ts.
 export async function query(text: string, params?: any[]) {
-  const tenantId = tenantStorage.getStore()
-  if (!tenantId) return sharedPool.query(text, params)
-
-  const schemaName = `tenant_${tenantId}`
-  const client = await sharedPool.connect()
-  try {
-    await client.query(`SET search_path TO ${schemaName}, public`)
-    const result = await client.query(text, params)
-    await client.query(`SET search_path TO public`)
-    return result
-  } finally {
-    client.release()
-  }
+  return tenantQuery(text, params)
 }
 
 export async function initSchema() {

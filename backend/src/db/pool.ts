@@ -8,6 +8,9 @@ export const pool = new Pool({
   ssl: useSSL ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
+  // Every physical connection starts on public. Tenant scoping below is
+  // transaction-local, so it can never outlive the checkout that set it.
+  options: '-c search_path=public',
 })
 
 // Stores the active tenantId for the current async context (request lifecycle).
@@ -15,16 +18,28 @@ export const pool = new Pool({
 // Automatically inherited by all async operations within the same request.
 export const tenantStorage = new AsyncLocalStorage<number>()
 
+// Runs one statement inside a transaction whose search_path points at the
+// tenant. set_config(..., true) is SET LOCAL: COMMIT or ROLLBACK reverts it,
+// so the connection goes back to the pool on public however the query ended.
+// If the transaction cannot be closed, the connection is destroyed instead.
 async function queryWithTenant(sql: string, values: any[] | undefined, tenantId: number): Promise<QueryResult> {
-  const schemaName = `tenant_${tenantId}`
   const client: PoolClient = await pool.connect()
+  let broken: Error | undefined
   try {
-    await client.query(`SET search_path TO ${schemaName}, public`)
+    await client.query('BEGIN')
+    await client.query(`SELECT set_config('search_path', $1, true)`, [`tenant_${Number(tenantId)}, public`])
     const result = await client.query(sql, values)
-    await client.query(`SET search_path TO public`)
+    await client.query('COMMIT')
     return result
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK')
+    } catch (rollbackErr: any) {
+      broken = rollbackErr
+    }
+    throw err
   } finally {
-    client.release()
+    client.release(broken)
   }
 }
 
