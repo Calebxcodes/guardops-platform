@@ -8,6 +8,13 @@ router.use(requireAuth)
 
 const DEFAULT_GEOFENCE_METERS = 183 // 200 yards — used when site has no configured radius
 
+// The time the app says an event happened (offline queue). Advisory only.
+function clientReportedAt(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? null : d.toISOString()
+}
+
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000
   const φ1 = lat1 * Math.PI / 180
@@ -138,16 +145,16 @@ router.post('/clock-in', async (req: AuthRequest, res: Response) => {
     return res.status(403).json({ error: 'Face ID verification required. Complete the face scan to clock in.' })
   }
 
-  // Accept clocked_at from queued offline actions; fall back to server time
-  const requestedAt  = req.body.clocked_at ? new Date(req.body.clocked_at) : new Date()
-  const now          = !isNaN(requestedAt.getTime()) ? requestedAt : new Date()
+  // The server clock decides when the clock-in happened. A time sent by the
+  // app (offline queue) is kept only as client_reported_at, which pay never reads.
+  const now          = new Date()
   const shiftStart   = new Date(shift.start_time)
   const effectiveClockIn = now < shiftStart ? shiftStart : now
 
   await query(`
-    INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes, face_verified, created_at)
-    VALUES ($1,$2,'clock_in',$3,$4,$5,$6,$7,1,$8)
-  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes, effectiveClockIn.toISOString()])
+    INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes, face_verified, created_at, client_reported_at)
+    VALUES ($1,$2,'clock_in',$3,$4,$5,$6,$7,1,$8,$9)
+  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes, effectiveClockIn.toISOString(), clientReportedAt(req.body.clocked_at)])
 
   await query("UPDATE shifts SET status = 'active' WHERE id = $1", [shift_id])
   await query("UPDATE guards SET status = 'on-duty' WHERE id = $1", [req.guardId])
@@ -219,13 +226,13 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
     ORDER BY created_at DESC LIMIT 1
   `, [req.guardId, shift_id])
 
-  const clockOutAt  = req.body.clocked_at ? new Date(req.body.clocked_at) : new Date()
-  const effectiveClockOut = !isNaN(clockOutAt.getTime()) ? clockOutAt : new Date()
+  // Server time only; see clock-in.
+  const effectiveClockOut = new Date()
 
   await query(`
-    INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes, face_verified, created_at)
-    VALUES ($1,$2,'clock_out',$3,$4,$5,$6,$7,1,$8)
-  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes, effectiveClockOut.toISOString()])
+    INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes, face_verified, created_at, client_reported_at)
+    VALUES ($1,$2,'clock_out',$3,$4,$5,$6,$7,0,$8,$9)
+  `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes, effectiveClockOut.toISOString(), clientReportedAt(req.body.clocked_at)])
 
   await query("UPDATE shifts SET status = 'completed' WHERE id = $1", [shift_id])
   await query("UPDATE guards SET status = 'off-duty' WHERE id = $1", [req.guardId])
@@ -239,7 +246,9 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
 
   let hoursWorked = 0
   if (clockInRows[0]) {
-    const ms = effectiveClockOut.getTime() - new Date(clockInRows[0].created_at).getTime()
+    // Clock-in is moved forward to the shift start, so clocking out before the
+    // start would otherwise produce negative hours.
+    const ms = Math.max(0, effectiveClockOut.getTime() - new Date(clockInRows[0].created_at).getTime())
     hoursWorked = Math.round((ms / 3600000) * 100) / 100
   }
 

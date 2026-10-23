@@ -807,6 +807,26 @@ export async function initSchema() {
   } catch (err) {
     console.error('[Migration] Client billing rates failed (non-fatal):', err)
   }
+
+  // ── Server-authoritative clock times + site guard rate everywhere (Oct 2026) ─
+  // client_reported_at: time the app claimed for a clock event (advisory only)
+  // public.sites never got guard_hourly_rate; payroll now reads it in every schema
+  try {
+    await pool.query(`
+      ALTER TABLE clock_events ADD COLUMN IF NOT EXISTS client_reported_at TIMESTAMPTZ;
+      ALTER TABLE sites ADD COLUMN IF NOT EXISTS guard_hourly_rate REAL DEFAULT 0;
+    `)
+    const { rows: tenants } = await pool.query(
+      `SELECT id FROM public.tenants WHERE status != 'deleted'`
+    )
+    for (const t of tenants) {
+      await pool.query(`
+        ALTER TABLE IF EXISTS tenant_${t.id}.clock_events ADD COLUMN IF NOT EXISTS client_reported_at TIMESTAMPTZ;
+      `)
+    }
+  } catch (err) {
+    console.error('[Migration] Clock event client_reported_at failed (non-fatal):', err)
+  }
 }
 
 // ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────

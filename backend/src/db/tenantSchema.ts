@@ -126,7 +126,8 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
         photo_url     TEXT,
         notes         TEXT,
         face_verified INTEGER DEFAULT 0,
-        created_at    TIMESTAMPTZ DEFAULT NOW()
+        created_at    TIMESTAMPTZ DEFAULT NOW(),
+        client_reported_at TIMESTAMPTZ
       );
 
       CREATE TABLE IF NOT EXISTS route_checkpoints (
