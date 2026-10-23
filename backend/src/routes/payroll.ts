@@ -41,29 +41,46 @@ router.post('/generate', requirePermission('payroll', 'create'), async (req: Req
     return res.status(400).json({ error: 'tax_rate must be a number between 0 and 100' })
   const deductionRate = typeof tax_rate === 'number' ? tax_rate / 100 : 0.1
 
+  // Each timesheet is paid at the guard rate of the site its shift was at.
   const { rows: timesheets } = await query(`
-    SELECT t.*, g.hourly_rate
+    SELECT t.id, t.guard_id, t.regular_hours, t.overtime_hours,
+      si.id AS site_id, si.name AS site_name, si.guard_hourly_rate AS site_guard_rate
     FROM timesheets t
-    JOIN guards g ON g.id = t.guard_id
+    LEFT JOIN shifts sh ON sh.id = t.shift_id
+    LEFT JOIN sites si ON si.id = sh.site_id
     WHERE t.status = 'approved'
     AND t.period_start >= $1 AND t.period_end <= $2
   `, [period_start, period_end]) as { rows: any[] }
+
+  // Never fall back to a default rate: a timesheet with no site guard rate
+  // blocks the run until an admin sets one.
+  const unpriced = timesheets.filter(ts => !(Number(ts.site_guard_rate) > 0))
+  if (unpriced.length > 0) {
+    const sites = [...new Set(unpriced.map(ts => ts.site_name || 'timesheets not linked to a shift'))]
+    return res.status(422).json({
+      error: `Some approved timesheets have no guard pay rate. Set the guard hourly rate on: ${sites.join(', ')}. Then generate payroll again.`,
+      unpriced: unpriced.map(ts => ({ timesheet_id: ts.id, guard_id: ts.guard_id, site_id: ts.site_id, site_name: ts.site_name })),
+    })
+  }
 
   // Group by guard
   const byGuard: Record<number, any> = {}
   for (const ts of timesheets) {
     if (!byGuard[ts.guard_id]) {
-      byGuard[ts.guard_id] = { guard_id: ts.guard_id, hourly_rate: ts.hourly_rate, regular_hours: 0, overtime_hours: 0 }
+      byGuard[ts.guard_id] = { guard_id: ts.guard_id, regular_hours: 0, overtime_hours: 0, regular_pay: 0, overtime_pay: 0 }
     }
+    const rate = Number(ts.site_guard_rate)
     byGuard[ts.guard_id].regular_hours  += ts.regular_hours
     byGuard[ts.guard_id].overtime_hours += ts.overtime_hours
+    byGuard[ts.guard_id].regular_pay    += ts.regular_hours  * rate
+    byGuard[ts.guard_id].overtime_pay   += ts.overtime_hours * rate * 1.5
   }
 
   const records: any[] = []
   for (const guardId of Object.keys(byGuard)) {
     const g = byGuard[Number(guardId)]
-    const regular_pay  = g.regular_hours  * g.hourly_rate
-    const overtime_pay = g.overtime_hours * g.hourly_rate * 1.5
+    const regular_pay  = Math.round(g.regular_pay  * 100) / 100
+    const overtime_pay = Math.round(g.overtime_pay * 100) / 100
     const gross_pay    = regular_pay + overtime_pay
     const deductions   = gross_pay * deductionRate
     const net_pay      = gross_pay - deductions

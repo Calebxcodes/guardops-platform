@@ -27,7 +27,8 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
 
 router.get('/today', async (req: AuthRequest, res: Response) => {
   const { rows } = await query(`
-    SELECT sh.*, s.name as site_name, s.address as site_address, s.lat, s.lng,
+    SELECT sh.*, s.guard_hourly_rate as hourly_rate, -- guards see their pay rate, not the client billing rate on the shift
+      s.name as site_name, s.address as site_address, s.lat, s.lng,
       s.geofence_radius, s.requirements, s.post_orders, c.name as client_name, c.contact_phone as site_phone
     FROM shifts sh
     JOIN sites s ON s.id = sh.site_id
@@ -40,7 +41,8 @@ router.get('/today', async (req: AuthRequest, res: Response) => {
 
 router.get('/upcoming', async (req: AuthRequest, res: Response) => {
   const { rows } = await query(`
-    SELECT sh.*, s.name as site_name, s.address as site_address,
+    SELECT sh.*, s.guard_hourly_rate as hourly_rate, -- guard pay rate, not the client billing rate
+      s.name as site_name, s.address as site_address,
       c.name as client_name
     FROM shifts sh
     JOIN sites s ON s.id = sh.site_id
@@ -59,7 +61,7 @@ router.get('/history', async (req: AuthRequest, res: Response) => {
 
   const { rows } = await query(`
     SELECT sh.*, s.name as site_name, c.name as client_name,
-      COALESCE(sh.hourly_rate, s.guard_hourly_rate, s.hourly_rate, 0) as effective_rate,
+      COALESCE(s.guard_hourly_rate, 0) as effective_rate,
       EXTRACT(EPOCH FROM (COALESCE(sh.actual_end_time, sh.end_time) - sh.start_time)) / 3600 as hours_worked
     FROM shifts sh
     JOIN sites s ON s.id = sh.site_id
