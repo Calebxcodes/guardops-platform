@@ -4,7 +4,7 @@ import { query } from '../db/pool'
 import { requireAuth, AuthRequest } from '../middleware/auth'
 import { requireAdmin } from './adminAuth'
 import { extractBadgeData, isBadgeExpired } from '../services/badgeOcrService'
-import { uploadToS3 } from '../services/s3Service'
+import { uploadToS3, signedUrl, canonicalUrl, withSignedUrls } from '../services/s3Service'
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
@@ -22,10 +22,10 @@ router.post('/upload', requireAuth, upload.single('file'), async (req: AuthReque
       uploadToS3(req.file.buffer, req.file.mimetype, 'badges'),
       extractBadgeData(req.file.buffer),
     ])
-    res.json({ extracted, photo_url: photoUrl })
+    res.json({ extracted, photo_url: await signedUrl(photoUrl) })
   } catch (err: any) {
     console.error('[badges/upload]', err.message)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Upload failed. Please try again.' })
   }
 })
 
@@ -53,7 +53,8 @@ router.post('/confirm', requireAuth, async (req: AuthRequest, res: Response) => 
          (guard_id, sia_license_number, sia_expiry_date, badge_number, card_type, photo_url, is_current, status, reviewed_by_guard_at)
        VALUES ($1, $2, $3, $4, $5, $6, 1, 'verified', $7)
        RETURNING id`,
-      [req.guardId, sia_license_number || null, sia_expiry_date, badge_number || null, card_type || null, photo_url || null, Date.now()]
+      // Only a photo in our own bucket is stored, in canonical (unsigned) form
+      [req.guardId, sia_license_number || null, sia_expiry_date, badge_number || null, card_type || null, canonicalUrl(photo_url), Date.now()]
     )
     res.status(201).json({ success: true, badge_id: rows[0].id })
   } catch (err: any) {
@@ -69,9 +70,10 @@ router.get('/current', requireAuth, async (req: AuthRequest, res: Response) => {
       `SELECT * FROM security_badges WHERE guard_id = $1 ORDER BY created_at DESC`,
       [req.guardId]
     )
+    const signed = await withSignedUrls(rows, 'photo_url')
     res.json({
-      current: rows.find(r => r.is_current === 1) || null,
-      history: rows,
+      current: signed.find(r => r.is_current === 1) || null,
+      history: signed,
     })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
@@ -100,7 +102,7 @@ router.get('/admin/guards', requireAdmin, async (req: Request, res: Response) =>
       WHERE g.active = 1 AND g.deleted_at IS NULL
       ORDER BY g.first_name, g.last_name
     `)
-    res.json(rows)
+    res.json(await withSignedUrls(rows, 'photo_url'))
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
@@ -114,9 +116,10 @@ router.get('/admin/guards/:guardId', requireAdmin, async (req: Request, res: Res
       `SELECT * FROM security_badges WHERE guard_id = $1 ORDER BY created_at DESC`,
       [guardId]
     )
+    const signed = await withSignedUrls(rows, 'photo_url')
     res.json({
-      current: rows.find(r => r.is_current === 1) || null,
-      history: rows,
+      current: signed.find(r => r.is_current === 1) || null,
+      history: signed,
     })
   } catch (err: any) {
     res.status(500).json({ error: err.message })

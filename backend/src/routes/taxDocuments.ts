@@ -3,7 +3,7 @@ import multer from 'multer'
 import { query } from '../db/pool'
 import { requireAuth, AuthRequest } from '../middleware/auth'
 import { requireAdmin } from './adminAuth'
-import { uploadToS3 } from '../services/s3Service'
+import { uploadToS3, signedUrl, withSignedUrls } from '../services/s3Service'
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
@@ -28,10 +28,10 @@ router.post('/upload', requireAuth, upload.single('file'), async (req: AuthReque
        VALUES ($1, $2, $3, $4, 'guard') RETURNING id`,
       [req.guardId, document_type, req.file.originalname, fileUrl]
     )
-    res.status(201).json({ success: true, id: rows[0].id, file_url: fileUrl, file_name: req.file.originalname })
+    res.status(201).json({ success: true, id: rows[0].id, file_url: await signedUrl(fileUrl), file_name: req.file.originalname })
   } catch (err: any) {
     console.error('[tax-docs/upload]', err.message)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Upload failed. Please try again.' })
   }
 })
 
@@ -44,7 +44,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
        FROM tax_documents WHERE guard_id = $1 ORDER BY created_at DESC`,
       [req.guardId]
     )
-    res.json(rows)
+    res.json(await withSignedUrls(rows, 'file_url'))
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
@@ -76,7 +76,7 @@ router.get('/admin/guards/:guardId', requireAdmin, async (req: Request, res: Res
        FROM tax_documents WHERE guard_id = $1 ORDER BY created_at DESC`,
       [parseInt(req.params.guardId)]
     )
-    res.json(rows)
+    res.json(await withSignedUrls(rows, 'file_url'))
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
