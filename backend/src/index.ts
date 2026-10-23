@@ -23,6 +23,7 @@ import guardTimesheetsRouter from './routes/guardTimesheets'
 import guardMessagesRouter from './routes/guardMessages'
 import guardProfileRouter from './routes/guardProfile'
 import adminAuthRouter, { ensureDefaultAdmin, requireAdmin } from './routes/adminAuth'
+import { requireFeature } from './middleware/rbac'
 import { runDailyAlerts } from './services/alerts'
 import complianceRouter from './routes/compliance'
 import aiReportRouter from './routes/aiReport'
@@ -202,16 +203,16 @@ app.get('/api/tenant/by-slug/:slug', async (req: Request, res: Response) => {
 // ── Routes ────────────────────────────────────────────────────────────────
 app.use('/api/admin/auth', adminAuthRouter)
 // All admin data routes require a valid admin JWT
-app.use('/api/guards',     requireAdmin, guardsRouter)
-app.use('/api/clients',    requireAdmin, clientsRouter)
-app.use('/api/sites',      requireAdmin, sitesRouter)
-app.use('/api/shifts',     requireAdmin, shiftsRouter)
-app.use('/api/timesheets', requireAdmin, timesheetsRouter)
+app.use('/api/guards',     requireAdmin, requireFeature('guards'), guardsRouter)
+app.use('/api/clients',    requireAdmin, requireFeature('clients'), clientsRouter)
+app.use('/api/sites',      requireAdmin, requireFeature('sites'), sitesRouter)
+app.use('/api/shifts',     requireAdmin, requireFeature('shifts'), shiftsRouter)
+app.use('/api/timesheets', requireAdmin, requireFeature('timesheets'), timesheetsRouter)
 app.use('/api/payroll',    requireAdmin, payrollRouter)
-app.use('/api/dashboard',  requireAdmin, dashboardRouter)
-app.use('/api/incidents',  requireAdmin, incidentsRouter)
-app.use('/api/compliance', requireAdmin, complianceRouter)
-app.use('/api/ai',         requireAdmin, aiReportRouter)
+app.use('/api/dashboard',  requireAdmin, requireFeature('reports'), dashboardRouter)
+app.use('/api/incidents',  requireAdmin, requireFeature('incidents'), incidentsRouter)
+app.use('/api/compliance', requireAdmin, requireFeature('compliance'), complianceRouter)
+app.use('/api/ai',         requireAdmin, requireFeature('reports'), aiReportRouter)
 app.use('/api/portal', clientPortalRouter)
 app.use('/api/auth', authRouter)
 app.use('/api/guard/shifts', guardShiftsRouter)
@@ -244,10 +245,10 @@ app.use('/api/guard/messages',   guardMessagesRouter)
 app.use('/api/guard/profile',    guardProfileRouter)
 app.use('/api/guard/push',       pushRouter)
 app.use('/api/guard/documents',  guardDocumentsRouter)
-app.use('/api/messages',         requireAdmin, adminMessagesRouter)
-app.use('/api/admin/notifications', requireAdmin, adminNotificationsRouter)
-app.use('/api/analytics',        requireAdmin, analyticsRouter)
-app.use('/api/documents',        requireAdmin, documentsRouter)
+app.use('/api/messages',         requireAdmin, requireFeature('messages', { 'POST /stream-token': 'read' }), adminMessagesRouter)
+app.use('/api/admin/notifications', requireAdmin, requireFeature('messages'), adminNotificationsRouter)
+app.use('/api/analytics',        requireAdmin, requireFeature('reports'), analyticsRouter)
+app.use('/api/documents',        requireAdmin, requireFeature('documents'), documentsRouter)
 
 // ── Multi-tenant signup (public — no auth required) ───────────────────────
 app.use('/api', signupRouter)
@@ -270,15 +271,15 @@ app.use('/api/permissions', permissionsRouter)
 
 // ── HR: time-off (guard-facing + admin-facing) ────────────────────────────
 app.use('/api/guard/time-off', timeOffRouter)
-app.use('/api/time-off', timeOffRouter)
+app.use('/api/time-off', requireAdmin, requireFeature('timeoff'), timeOffRouter)
 
 // ── Security badges (guard-facing + admin-facing) ─────────────────────────
 app.use('/api/guard/badges', badgesRouter)
-app.use('/api/badges', badgesRouter)
+app.use('/api/badges', requireAdmin, requireFeature('badges'), badgesRouter)
 
 // ── Tax documents (guard-facing + admin-facing) ───────────────────────────
 app.use('/api/guard/tax-docs', taxDocumentsRouter)
-app.use('/api/tax-docs', taxDocumentsRouter)
+app.use('/api/tax-docs', requireAdmin, requireFeature('taxdocs'), taxDocumentsRouter)
 
 // ── Master admin panel ────────────────────────────────────────────────────
 app.use('/api/master-admin', masterAdminAuthRouter)
