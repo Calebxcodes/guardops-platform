@@ -121,45 +121,59 @@ export async function ensureDefaultAdmin() {
   console.warn('[SECURITY] Change the admin password immediately after first login.')
 }
 
+// ── Admin account lookup ──────────────────────────────────────────────────────
+
+interface AdminAccount { admin: any; tenantId: number | null; slug: string | null }
+
+// Every admin account with this email: the legacy public admin first, then
+// tenant admins (owner's own company first). public.tenants only records the
+// owner's email, so invited team members are found by looking in each active
+// tenant's admin_users.
+async function findAdminAccounts(email: string, slug?: string): Promise<AdminAccount[]> {
+  const accounts: AdminAccount[] = []
+  const { rows: publicRows } = await pool.query('SELECT * FROM public.admin_users WHERE lower(email) = lower($1)', [email])
+  if (publicRows[0] && !slug) accounts.push({ admin: publicRows[0], tenantId: null, slug: null })
+
+  const { rows: tenants } = await pool.query(
+    `SELECT id, slug, (lower(email) = lower($1)) AS is_owner FROM public.tenants
+     WHERE status NOT IN ('cancelled', 'deleted') AND ($2::text IS NULL OR slug = $2)
+     ORDER BY is_owner DESC, id`,
+    [email, slug ?? null]
+  )
+  const found = await Promise.all(tenants.map(async (t: any) => {
+    const tid = Number(t.id)
+    try {
+      const { rows } = await pool.query(`SELECT * FROM tenant_${tid}.admin_users WHERE lower(email) = lower($1)`, [email])
+      return rows[0] ? { admin: rows[0], tenantId: tid, slug: t.slug as string } : null
+    } catch {
+      return null // schema missing or mid-provisioning
+    }
+  }))
+  for (const a of found) if (a) accounts.push(a)
+  return accounts
+}
+
 // ── Password login ────────────────────────────────────────────────────────────
 
 router.post('/login', async (req: Request, res: Response) => {
-  const { email, password } = req.body
+  const { email, password, slug: requestedSlug } = req.body
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' })
 
-  let admin: any = null
-  let tenantId: number | null = null
-  let slug: string | null = null
+  const accounts = await findAdminAccounts(email, requestedSlug || undefined)
+  if (accounts.length === 0) return res.status(401).json({ error: 'Invalid credentials' })
+  const withPassword = accounts.filter(a => a.admin.password_hash)
+  if (withPassword.length === 0) return res.status(401).json({ error: 'This account uses SSO — please sign in with Google or Microsoft' })
 
-  // Step 1: check public.admin_users (original single-tenant / direct-install admin)
-  const { rows: publicRows } = await pool.query('SELECT * FROM public.admin_users WHERE email = $1', [email])
-  if (publicRows[0]) {
-    admin = publicRows[0]
-  } else {
-    // Step 2: find which tenant owns this email (owner email stored at signup)
-    const { rows: tenantRows } = await pool.query(
-      "SELECT id, slug FROM public.tenants WHERE email = $1 AND status NOT IN ('cancelled')",
-      [email]
-    )
-    if (tenantRows[0]) {
-      tenantId = Number(tenantRows[0].id)
-      slug = tenantRows[0].slug as string
-      const { rows: adminRows } = await pool.query(
-        `SELECT * FROM tenant_${tenantId}.admin_users WHERE email = $1`,
-        [email]
-      )
-      if (adminRows[0]) admin = adminRows[0]
-    }
+  // The same email may be an admin in more than one company; the password picks the account.
+  let match: AdminAccount | null = null
+  for (const a of withPassword) {
+    if (await bcrypt.compare(password, a.admin.password_hash)) { match = a; break }
   }
-
-  if (!admin) return res.status(401).json({ error: 'Invalid credentials' })
-  if (!admin.password_hash) return res.status(401).json({ error: 'This account uses SSO — please sign in with Google or Microsoft' })
-
-  const valid = await bcrypt.compare(password, admin.password_hash)
-  if (!valid) {
+  if (!match) {
     auditLog({ user_type: 'admin', action: 'login_failed', extra: { email }, ip_address: req.ip })
     return res.status(401).json({ error: 'Invalid credentials' })
   }
+  const { admin, tenantId, slug } = match
 
   if (admin.totp_enabled) {
     const partial_token = signPartialToken(admin.id, tenantId)
@@ -180,21 +194,27 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
   const { email } = req.body
   if (!email) return res.status(400).json({ error: 'Email required' })
 
-  const { rows: adminRows } = await query('SELECT id, password_hash FROM admin_users WHERE email = $1', [email])
-  // Always return 200 to prevent email enumeration
-  if (!adminRows[0] || !adminRows[0].password_hash) return res.json({ message: 'If that email is registered, a reset link has been sent.' })
+  // One link per account (an email can be an admin in several companies).
+  // Tokens live in public.password_reset_tokens with tenant_id (NULL = legacy
+  // public admin), the same scheme the guard reset uses.
+  const accounts = (await findAdminAccounts(email)).filter(a => a.admin.password_hash)
+  for (const { admin, tenantId } of accounts) {
+    const token      = crypto.randomBytes(32).toString('hex')
+    const tokenHash  = crypto.createHash('sha256').update(token).digest('hex')
+    const expiresAt  = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
 
-  const token      = crypto.randomBytes(32).toString('hex')
-  const tokenHash  = crypto.createHash('sha256').update(token).digest('hex')
-  const expiresAt  = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
-
-  await query(`UPDATE password_reset_tokens SET used = 1 WHERE user_type = 'admin' AND user_id = $1`, [adminRows[0].id])
-  await query(
-    `INSERT INTO password_reset_tokens (user_type, user_id, token, expires_at) VALUES ('admin', $1, $2, $3)`,
-    [adminRows[0].id, tokenHash, expiresAt.toISOString()]
-  )
-
-  await sendPasswordReset(email, token, 'admin')
+    await pool.query(
+      `UPDATE public.password_reset_tokens SET used = 1
+       WHERE user_type = 'admin' AND user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2`,
+      [admin.id, tenantId]
+    )
+    await pool.query(
+      `INSERT INTO public.password_reset_tokens (user_type, user_id, tenant_id, token, expires_at) VALUES ('admin', $1, $2, $3, $4)`,
+      [admin.id, tenantId, tokenHash, expiresAt.toISOString()]
+    )
+    await sendPasswordReset(admin.email, token, 'admin')
+  }
+  // Always the same answer, to prevent email enumeration
   res.json({ message: 'If that email is registered, a reset link has been sent.' })
 })
 
@@ -204,16 +224,18 @@ router.post('/reset-password', async (req: Request, res: Response) => {
   if (new_password.length < 10) return res.status(400).json({ error: 'Password must be at least 10 characters' })
 
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
-  const { rows } = await query(`
-    SELECT * FROM password_reset_tokens
+  // Claim the token in one statement so it can only ever be used once
+  const { rows } = await pool.query(`
+    UPDATE public.password_reset_tokens SET used = 1
     WHERE token = $1 AND user_type = 'admin' AND used = 0 AND expires_at > NOW()
+    RETURNING user_id, tenant_id
   `, [tokenHash])
   if (!rows[0]) return res.status(400).json({ error: 'Invalid or expired reset link' })
 
-  // Invalidate token FIRST (atomic), then update password — prevents race-condition reuse
+  const table = rows[0].tenant_id ? `tenant_${Number(rows[0].tenant_id)}.admin_users` : 'public.admin_users'
   const hash = await bcrypt.hash(new_password, 10)
-  await query(`UPDATE password_reset_tokens SET used = 1 WHERE id = $1`, [rows[0].id])
-  await query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [hash, rows[0].user_id])
+  await pool.query(`UPDATE ${table} SET password_hash = $1 WHERE id = $2`, [hash, rows[0].user_id])
+  auditLog({ user_type: 'admin', user_id: rows[0].user_id, action: 'password_reset', extra: { tenant_id: rows[0].tenant_id }, ip_address: req.ip })
   res.json({ message: 'Password updated successfully' })
 })
 
