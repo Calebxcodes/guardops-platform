@@ -1,5 +1,17 @@
 import { pool, query } from '../db/pool'
 
+// A guard who never clocked out is paid up to the scheduled end, not up to
+// whenever this job happens to run (it may run days late after downtime).
+export function autoClockoutTime(shiftEnd: string | Date, now: Date = new Date()): Date {
+  const end = new Date(shiftEnd)
+  return end < now ? end : now
+}
+
+export function hoursBetween(from: Date, to: Date): number {
+  const ms = Math.max(0, to.getTime() - from.getTime())
+  return Math.round((ms / 3600000) * 100) / 100
+}
+
 /**
  * Fix #5 — Auto clock-out service.
  * Runs every 5 minutes. Finds shifts that ended 30+ min ago with no clock-out
@@ -34,7 +46,7 @@ async function processForTenant(tenantId: number): Promise<void> {
   `, [thirtyMinAgo], tenantId)
 
   for (const shift of rows) {
-    const now = new Date()
+    const now = autoClockoutTime(shift.end_time)
     await query(`
       UPDATE shifts
       SET status = 'completed', auto_clocked_out = 1, actual_end_time = $1
@@ -57,9 +69,8 @@ async function processForTenant(tenantId: number): Promise<void> {
       `, [shift.id, shift.guard_id], tenantId)
 
       const clockIn  = ciRows[0] ? new Date(ciRows[0].created_at) : new Date(shift.end_time)
-      const msWorked = now.getTime() - clockIn.getTime()
-      const hoursWorked = Math.round((msWorked / 3600000) * 100) / 100
-      const today = now.toISOString().split('T')[0]
+      const hoursWorked = hoursBetween(clockIn, now)
+      const today = new Date().toISOString().split('T')[0]
       await query(`
         INSERT INTO timesheets (guard_id, shift_id, period_start, period_end, regular_hours, overtime_hours, total_hours, status, source, submitted_at)
         VALUES ($1,$2,$3,$4,$5,$6,$7,'submitted','auto_clockout',NOW())
@@ -82,7 +93,7 @@ async function processPublicSchema(): Promise<void> {
   `, [thirtyMinAgo])
 
   for (const shift of rows) {
-    const now = new Date()
+    const now = autoClockoutTime(shift.end_time)
     await pool.query(`
       UPDATE shifts SET status = 'completed', auto_clocked_out = 1, actual_end_time = $1 WHERE id = $2
     `, [now.toISOString(), shift.id])
@@ -100,8 +111,8 @@ async function processPublicSchema(): Promise<void> {
         ORDER BY created_at DESC LIMIT 1
       `, [shift.id, shift.guard_id])
       const clockIn = ciRows[0] ? new Date(ciRows[0].created_at) : new Date(shift.end_time)
-      const hoursWorked = Math.round(((now.getTime() - clockIn.getTime()) / 3600000) * 100) / 100
-      const today = now.toISOString().split('T')[0]
+      const hoursWorked = hoursBetween(clockIn, now)
+      const today = new Date().toISOString().split('T')[0]
       await pool.query(`
         INSERT INTO timesheets (guard_id, shift_id, period_start, period_end, regular_hours, overtime_hours, total_hours, status, source, submitted_at)
         VALUES ($1,$2,$3,$4,$5,$6,$7,'submitted','auto_clockout',NOW())
