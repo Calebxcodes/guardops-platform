@@ -176,7 +176,8 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
         guard_notes    TEXT,
         submitted_at   TIMESTAMPTZ,
         approved_at    TIMESTAMPTZ,
-        created_at     TIMESTAMPTZ DEFAULT NOW()
+        created_at     TIMESTAMPTZ DEFAULT NOW(),
+        payroll_record_id INTEGER
       );
 
       CREATE TABLE IF NOT EXISTS payroll_records (

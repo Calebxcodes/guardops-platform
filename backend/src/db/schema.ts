@@ -827,6 +827,21 @@ export async function initSchema() {
   } catch (err) {
     console.error('[Migration] Clock event client_reported_at failed (non-fatal):', err)
   }
+
+  // ── Timesheet → payroll link, so a timesheet is paid at most once ──────────
+  try {
+    await pool.query(`ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS payroll_record_id INTEGER`)
+    const { rows: tenants } = await pool.query(
+      `SELECT id FROM public.tenants WHERE status != 'deleted'`
+    )
+    for (const t of tenants) {
+      await pool.query(`
+        ALTER TABLE IF EXISTS tenant_${t.id}.timesheets ADD COLUMN IF NOT EXISTS payroll_record_id INTEGER;
+      `)
+    }
+  } catch (err) {
+    console.error('[Migration] Timesheet payroll_record_id failed (non-fatal):', err)
+  }
 }
 
 // ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────

@@ -49,6 +49,7 @@ router.post('/generate', requirePermission('payroll', 'create'), async (req: Req
     LEFT JOIN shifts sh ON sh.id = t.shift_id
     LEFT JOIN sites si ON si.id = sh.site_id
     WHERE t.status = 'approved'
+    AND t.payroll_record_id IS NULL
     AND t.period_start >= $1 AND t.period_end <= $2
   `, [period_start, period_end]) as { rows: any[] }
 
@@ -67,9 +68,10 @@ router.post('/generate', requirePermission('payroll', 'create'), async (req: Req
   const byGuard: Record<number, any> = {}
   for (const ts of timesheets) {
     if (!byGuard[ts.guard_id]) {
-      byGuard[ts.guard_id] = { guard_id: ts.guard_id, regular_hours: 0, overtime_hours: 0, regular_pay: 0, overtime_pay: 0 }
+      byGuard[ts.guard_id] = { guard_id: ts.guard_id, timesheet_ids: [], regular_hours: 0, overtime_hours: 0, regular_pay: 0, overtime_pay: 0 }
     }
     const rate = Number(ts.site_guard_rate)
+    byGuard[ts.guard_id].timesheet_ids.push(ts.id)
     byGuard[ts.guard_id].regular_hours  += ts.regular_hours
     byGuard[ts.guard_id].overtime_hours += ts.overtime_hours
     byGuard[ts.guard_id].regular_pay    += ts.regular_hours  * rate
@@ -91,12 +93,19 @@ router.post('/generate', requirePermission('payroll', 'create'), async (req: Req
     )
 
     if (!existing[0]) {
+      // One statement, so the record and the link that stops its timesheets
+      // being paid again in an overlapping period are written together.
       const { rows } = await query(`
-        INSERT INTO payroll_records (guard_id, period_start, period_end, regular_hours, overtime_hours,
-          regular_pay, overtime_pay, bonuses, deductions, gross_pay, net_pay, status)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,0,$8,$9,$10,'pending') RETURNING *
+        WITH rec AS (
+          INSERT INTO payroll_records (guard_id, period_start, period_end, regular_hours, overtime_hours,
+            regular_pay, overtime_pay, bonuses, deductions, gross_pay, net_pay, status)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,0,$8,$9,$10,'pending') RETURNING *
+        ), linked AS (
+          UPDATE timesheets SET payroll_record_id = (SELECT id FROM rec) WHERE id = ANY($11)
+        )
+        SELECT * FROM rec
       `, [g.guard_id, period_start, period_end, g.regular_hours, g.overtime_hours,
-          regular_pay, overtime_pay, deductions, gross_pay, net_pay])
+          regular_pay, overtime_pay, deductions, gross_pay, net_pay, g.timesheet_ids])
       records.push(rows[0])
     }
   }

@@ -107,6 +107,18 @@ describe('payroll pays the site guard rate', () => {
     expect(calls.some(c => c.sql.includes('INSERT INTO payroll_records'))).toBe(false)
   })
 
+  it('pays a timesheet at most once: only unlinked timesheets, linked in the same statement', async () => {
+    respond = sql => sql.includes('FROM timesheets t') ? [
+      { id: 1, guard_id: 7, regular_hours: 4, overtime_hours: 0, site_id: 3, site_name: 'A', site_guard_rate: 13 },
+      { id: 2, guard_id: 7, regular_hours: 2, overtime_hours: 0, site_id: 3, site_name: 'A', site_guard_rate: 13 },
+    ] : []
+    await request(app).post('/payroll/generate').send({ period_start: '2026-10-01', period_end: '2026-10-31' })
+    expect(calls.find(c => c.sql.includes('FROM timesheets t'))!.sql).toMatch(/payroll_record_id IS NULL/)
+    const insert = calls.find(c => c.sql.includes('INSERT INTO payroll_records'))!
+    expect(insert.sql).toMatch(/UPDATE timesheets SET payroll_record_id/)
+    expect(insert.params[10]).toEqual([1, 2])
+  })
+
   it('does not read the hidden guards.hourly_rate', async () => {
     await request(app).post('/payroll/generate').send({ period_start: '2026-10-01', period_end: '2026-10-31' })
     expect(calls.find(c => c.sql.includes('FROM timesheets t'))!.sql).not.toMatch(/g\.hourly_rate/)
