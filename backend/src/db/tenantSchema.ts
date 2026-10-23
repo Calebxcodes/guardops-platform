@@ -80,7 +80,9 @@ export async function initTenantSchema(tenantId: number): Promise<void> {
         address        TEXT,
         notes          TEXT,
         active         INTEGER DEFAULT 1,
-        created_at     TIMESTAMPTZ DEFAULT NOW()
+        created_at     TIMESTAMPTZ DEFAULT NOW(),
+        hourly_rate       REAL DEFAULT 0,
+        guard_hourly_rate REAL DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS sites (
