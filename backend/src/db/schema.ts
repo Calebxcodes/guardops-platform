@@ -842,6 +842,23 @@ export async function initSchema() {
   } catch (err) {
     console.error('[Migration] Timesheet payroll_record_id failed (non-fatal):', err)
   }
+
+  // ── Financial corrections trail ───────────────────────────────────────────
+  // Every manual correction to pay data stores the full row before and after,
+  // so a record is never silently rewritten.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.financial_corrections (
+      id            BIGSERIAL PRIMARY KEY,
+      schema_name   TEXT NOT NULL,
+      table_name    TEXT NOT NULL,
+      record_id     BIGINT NOT NULL,
+      before_values JSONB NOT NULL,
+      after_values  JSONB NOT NULL,
+      reason        TEXT NOT NULL,
+      approved_by   TEXT NOT NULL,
+      applied_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `)
 }
 
 // ── Shared rate-limit store (PostgreSQL) ─────────────────────────────────────
