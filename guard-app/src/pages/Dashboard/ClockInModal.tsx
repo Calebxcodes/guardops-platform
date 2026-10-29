@@ -278,7 +278,7 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
               <div className="flex items-center gap-2">
                 <ScanFace size={15} className={faceVerified ? 'text-green-400' : 'text-red-400'} />
                 {faceVerified
-                  ? <span className="text-green-400">Face ID verified ✓</span>
+                  ? <span className="text-green-400">Face matched on this device (not server-verified)</span>
                   : <span className="text-red-400">Face ID not verified — cannot clock {action}</span>}
               </div>
             </div>
@@ -358,7 +358,7 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
             </p>
             <div className="flex items-center justify-center gap-3 mt-3">
               <span className="text-green-400/70 text-xs flex items-center gap-1"><MapPin size={12} />Location verified</span>
-              <span className="text-green-400/70 text-xs flex items-center gap-1"><ScanFace size={12} />Face ID verified</span>
+              <span className="text-green-400/70 text-xs flex items-center gap-1"><ScanFace size={12} />Face matched on device</span>
             </div>
             {action === 'out' && <p className="text-green-400/70 text-sm mt-3">Timesheet draft created — submit when ready</p>}
             <button onClick={onClose} className="mt-6 w-full py-3.5 rounded-xl bg-brand-600 text-white font-semibold">Done</button>

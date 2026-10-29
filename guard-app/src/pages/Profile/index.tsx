@@ -333,7 +333,7 @@ export default function Profile() {
                   </p>
                   <p className="text-white/40 text-xs mt-0.5">
                     {guard?.has_face_id
-                      ? 'Your face will be verified each time you clock in or out.'
+                      ? 'Your face is checked on this device each time you clock in or out.'
                       : 'Enrol your face to enable biometric clock-in verification.'}
                   </p>
                 </div>

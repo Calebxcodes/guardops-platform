@@ -67,6 +67,14 @@ describe('clock events use the server clock, not the client', () => {
     expect(ts.params[6]).toBeCloseTo(4, 1)
   })
 
+  it('the app\'s face_verified claim is not trusted: no gate, recorded as not verified', async () => {
+    respond = sql => sql.includes('FROM shifts sh JOIN sites') ? [shift] : []
+    const res = await request(app).post('/guard/shifts/clock-in').send({ shift_id: 1 })
+    expect(res.status).toBe(200)
+    const insert = calls.find(c => c.sql.includes('INSERT INTO clock_events'))!
+    expect(insert.sql).toMatch(/'clock_in',\$3,\$4,\$5,\$6,\$7,0,/)
+  })
+
   it('clocking out before the shift start records 0 hours, not negative', async () => {
     respond = sql =>
       sql.includes('FROM shifts sh JOIN sites') ? [{ ...shift, status: 'active' }] :

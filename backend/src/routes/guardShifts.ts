@@ -137,15 +137,10 @@ router.post('/clock-in', async (req: AuthRequest, res: Response) => {
     }
   }
 
-  // 2FA enforcement: face verification is mandatory when guard has Face ID enrolled
-  const { rows: guardRows } = await query('SELECT face_descriptor FROM guards WHERE id = $1', [req.guardId])
-  const hasFaceId = !!guardRows[0]?.face_descriptor
-  if (!hasFaceId) {
-    return res.status(403).json({ error: 'Face ID not enrolled. Please set up Face ID in your profile before clocking in.' })
-  }
-  if (!face_verified) {
-    return res.status(403).json({ error: 'Face ID verification required. Complete the face scan to clock in.' })
-  }
+  // No server face gate: the face match runs only in the browser and the
+  // server cannot check it, so the app's face_verified claim proves nothing
+  // (finding #10). The claim is kept in the audit log only, and clock events
+  // record face_verified=0 until server-side verification exists.
 
   // The server clock decides when the clock-in happened. A time sent by the
   // app (offline queue) is kept only as client_reported_at, which pay never reads.
@@ -155,7 +150,7 @@ router.post('/clock-in', async (req: AuthRequest, res: Response) => {
 
   await query(`
     INSERT INTO clock_events (guard_id, shift_id, type, lat, lng, accuracy, photo_url, notes, face_verified, created_at, client_reported_at)
-    VALUES ($1,$2,'clock_in',$3,$4,$5,$6,$7,1,$8,$9)
+    VALUES ($1,$2,'clock_in',$3,$4,$5,$6,$7,0,$8,$9)
   `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes, effectiveClockIn.toISOString(), clientReportedAt(req.body.clocked_at)])
 
   await query("UPDATE shifts SET status = 'active' WHERE id = $1", [shift_id])
@@ -212,15 +207,7 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
     }
   }
 
-  // 2FA enforcement: face verification is mandatory when guard has Face ID enrolled
-  const { rows: guardRows } = await query('SELECT face_descriptor FROM guards WHERE id = $1', [req.guardId])
-  const hasFaceId = !!guardRows[0]?.face_descriptor
-  if (!hasFaceId) {
-    return res.status(403).json({ error: 'Face ID not enrolled. Please set up Face ID in your profile before clocking out.' })
-  }
-  if (!face_verified) {
-    return res.status(403).json({ error: 'Face ID verification required. Complete the face scan to clock out.' })
-  }
+  // No server face gate; see clock-in.
 
   const { rows: clockInRows } = await query(`
     SELECT created_at FROM clock_events

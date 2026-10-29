@@ -203,7 +203,7 @@ export default function FaceCapture({ mode, referenceDescriptor, onSuccess, onFa
         )}
         {status === 'verified' && (
           <p className="text-green-400 font-semibold text-sm">
-            {mode === 'enroll' ? 'Face captured!' : 'Identity verified ✓'}
+            {mode === 'enroll' ? 'Face captured!' : 'Face matched on this device'}
           </p>
         )}
         {status === 'no_face' && (
