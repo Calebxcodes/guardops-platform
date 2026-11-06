@@ -128,7 +128,7 @@ export default function Dashboard() {
           onClick={() => navigate('/scheduling')} />
         <KpiCard icon={TrendingUp}  label="Revenue (Month)"
           value={`£${metrics.revenue_this_month.toLocaleString('en-GB')}`}
-          sub={`${margin}% margin`}                       color="bg-blue-500"
+          sub={metrics.payroll_cost_this_month > 0 ? `${margin}% margin` : 'no payroll run this month'} color="bg-blue-500"
           onClick={() => navigate('/financial')} />
         <KpiCard icon={FileText}    label="Pending Timesheets"  value={metrics.pending_timesheets}
           sub="awaiting approval"                         color="bg-yellow-500"
@@ -246,7 +246,7 @@ export default function Dashboard() {
           </h2>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={revenueByClientData} layout="vertical">
-              <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `£${(v/1000).toFixed(0)}k`} />
+              <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v: number) => v >= 1000 ? `£${(v / 1000).toFixed(1)}k` : `£${Math.round(v)}`} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={80} />
               <Tooltip formatter={(v: number) => [`£${Math.round(v).toLocaleString('en-GB')}`, 'Revenue']} />
               <Bar dataKey="revenue" fill="#3b82f6" radius={[0, 4, 4, 0]} />
