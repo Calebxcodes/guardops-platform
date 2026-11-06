@@ -3,8 +3,12 @@ import bcrypt from 'bcryptjs'
 import { pool, query } from '../db/pool'
 import { sendGuardWelcomeEmail } from '../services/email'
 import crypto from 'crypto'
+import multer from 'multer'
+import { extractBadgeData } from '../services/badgeOcrService'
+import { uploadToS3, signedUrl, canonicalUrl } from '../services/s3Service'
 
 const router = Router()
+const badgeUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
 
 /**
  * GET /api/tenants/public
@@ -18,6 +22,32 @@ router.get('/tenants/public', async (_req: Request, res: Response) => {
      ORDER BY name ASC`
   )
   res.json({ success: true, tenants: rows })
+})
+
+/**
+ * POST /api/guard/signup/badge
+ * Badge photo + OCR during signup, before the guard has an account (the
+ * authenticated /guard/badges/upload can't be used yet). Images only, rate limited.
+ */
+router.post('/guard/signup/badge', badgeUpload.single('file'), async (req: Request, res: Response) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' })
+  if (!req.file.mimetype.startsWith('image/')) return res.status(400).json({ error: 'Badge must be a photo' })
+  const { rows } = await pool.query(
+    "SELECT id FROM public.tenants WHERE id = $1 AND status NOT IN ('deleted','archived')",
+    [Number(req.body.tenantId) || 0]
+  )
+  if (!rows[0]) return res.status(404).json({ error: 'Company not found' })
+
+  try {
+    const [photoUrl, extracted] = await Promise.all([
+      uploadToS3(req.file.buffer, req.file.mimetype, 'badges'),
+      extractBadgeData(req.file.buffer),
+    ])
+    res.json({ extracted, photo_url: await signedUrl(photoUrl) })
+  } catch (err: any) {
+    console.error('[guard/signup/badge]', err.message)
+    res.status(500).json({ error: 'Upload failed. Please try again.' })
+  }
 })
 
 /**
@@ -88,6 +118,17 @@ router.post('/guard/signup', async (req: Request, res: Response) => {
     tid
   )
   const guardId = guardRows[0].id
+
+  // Badge scanned during signup becomes the guard's current badge
+  if (siaBadge?.sia_expiry_date) {
+    await query(
+      `INSERT INTO security_badges (guard_id, sia_license_number, sia_expiry_date, badge_number, card_type, photo_url, is_current, reviewed_by_guard_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 1, $7)`,
+      [guardId, siaBadge.sia_license_number || null, siaBadge.sia_expiry_date, siaBadge.badge_number || null,
+       siaBadge.card_type || null, canonicalUrl(siaBadge.photo_url), Date.now()],
+      tid
+    )
+  }
 
   // Create guard_auth
   await query(

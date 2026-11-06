@@ -101,7 +101,7 @@ export default function GuardSignupFlow() {
     setOcrLoading(true)
     setError('')
     try {
-      const result = await badgeApi.upload(file)
+      const result = await badgeApi.signupUpload(file, state.tenantId!)
       setBadge({ ...result.extracted, photo_url: result.photo_url })
     } catch {
       setError('Could not read badge. Please try again or use a clearer photo.')

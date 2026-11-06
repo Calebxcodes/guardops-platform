@@ -182,6 +182,7 @@ app.use('/api/auth/change-password',              sensitiveLimiter)
 app.use('/api/guard/shifts/clock-in',             clockLimiter)
 app.use('/api/guard/shifts/clock-out',            clockLimiter)
 app.use('/api/guard/profile/face-descriptor',     sensitiveLimiter)
+app.use('/api/guard/signup/badge',                sensitiveLimiter)
 
 // ── Public tenant resolution (subdomain routing — no auth) ─────────────────
 // Called by frontend on every page load to resolve {slug}.strondis.com → tenant

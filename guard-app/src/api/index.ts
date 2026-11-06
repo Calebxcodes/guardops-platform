@@ -125,6 +125,13 @@ export const badgeApi = {
     form.append('file', file)
     return api.post('/guard/badges/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
   },
+  // During signup, before the guard has an account
+  signupUpload: (file: File, tenantId: number | string): Promise<{ extracted: any; photo_url: string }> => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('tenantId', String(tenantId))
+    return api.post('/guard/signup/badge', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+  },
   confirm: (data: { sia_license_number?: string; sia_expiry_date: string; badge_number?: string; card_type?: string; photo_url?: string | null }) =>
     api.post('/guard/badges/confirm', data).then(r => r.data),
 }
