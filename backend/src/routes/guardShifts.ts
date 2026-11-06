@@ -57,7 +57,8 @@ router.get('/upcoming', async (req: AuthRequest, res: Response) => {
 router.get('/history', async (req: AuthRequest, res: Response) => {
   const { startDate, endDate, format: fmt } = req.query as Record<string, string>
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  const end   = endDate   ? new Date(endDate)   : new Date()
+  // A date-only end (the app's date picker) means the whole of that day
+  const end   = endDate   ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(endDate) ? `${endDate}T23:59:59.999Z` : endDate) : new Date()
 
   const { rows } = await query(`
     SELECT sh.*, s.name as site_name, c.name as client_name,
