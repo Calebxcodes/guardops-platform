@@ -32,7 +32,7 @@ router.get('/today', async (req: AuthRequest, res: Response) => {
       s.geofence_radius, s.requirements, s.post_orders, c.name as client_name, c.contact_phone as site_phone
     FROM shifts sh
     JOIN sites s ON s.id = sh.site_id
-    JOIN clients c ON c.id = s.client_id
+    LEFT JOIN clients c ON c.id = s.client_id
     WHERE sh.guard_id = $1 AND sh.start_time::date = CURRENT_DATE AND sh.status != 'cancelled'
     ORDER BY sh.start_time ASC LIMIT 1
   `, [req.guardId])
@@ -46,7 +46,7 @@ router.get('/upcoming', async (req: AuthRequest, res: Response) => {
       c.name as client_name
     FROM shifts sh
     JOIN sites s ON s.id = sh.site_id
-    JOIN clients c ON c.id = s.client_id
+    LEFT JOIN clients c ON c.id = s.client_id
     WHERE sh.guard_id = $1 AND sh.start_time >= NOW()
       AND sh.start_time <= NOW() + INTERVAL '30 days' AND sh.status != 'cancelled'
     ORDER BY sh.start_time ASC
@@ -65,7 +65,7 @@ router.get('/history', async (req: AuthRequest, res: Response) => {
       EXTRACT(EPOCH FROM (COALESCE(sh.actual_end_time, sh.end_time) - sh.start_time)) / 3600 as hours_worked
     FROM shifts sh
     JOIN sites s ON s.id = sh.site_id
-    JOIN clients c ON c.id = s.client_id
+    LEFT JOIN clients c ON c.id = s.client_id
     WHERE sh.guard_id = $1
       AND sh.start_time >= $2
       AND sh.start_time <= $3
@@ -82,7 +82,7 @@ router.get('/history', async (req: AuthRequest, res: Response) => {
       lines.push([
         new Date(sh.start_time).toLocaleDateString('en-GB'),
         `"${sh.site_name}"`,
-        `"${sh.client_name}"`,
+        `"${sh.client_name ?? ""}"`,
         new Date(sh.start_time).toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' }),
         new Date(sh.actual_end_time || sh.end_time).toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' }),
         hrs,
