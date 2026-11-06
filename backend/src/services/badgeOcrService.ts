@@ -21,19 +21,27 @@ export async function extractBadgeData(imageBuffer: Buffer): Promise<ExtractedBa
   const detections = response.TextDetections || []
   const allText = detections.map(t => t.DetectedText || '').join(' ')
 
-  // SIA License Number: "SIA" followed by 6-7 digits
-  const siaMatch = allText.match(/SIA\s*0*(\d{6,7})/i)
-  const sia_license_number = siaMatch ? `SIA${siaMatch[1].padStart(7, '0')}` : null
+  // SIA licence number: printed on the card as 16 digits in groups of four;
+  // older internal format "SIA" + 6-7 digits still accepted
+  const cardNoMatch = allText.match(/\b(\d{4})\s?(\d{4})\s?(\d{4})\s?(\d{4})\b/)
+  const siaMatch = allText.match(/SIA\s*0*(\d{6,7})\b/i)
+  const sia_license_number = cardNoMatch
+    ? cardNoMatch.slice(1, 5).join('')
+    : siaMatch ? `SIA${siaMatch[1].padStart(7, '0')}` : null
 
   // Expiry date: look for keywords followed by dd/mm/yyyy or dd-mm-yyyy
+  // (SIA cards print "EXPIRES 01 JAN 2029"; numeric months and / or - separators also accepted)
   const expiryMatch = allText.match(
-    /(expir[ey]s?|valid\s+until|valid\s+to)[:\s]+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i
+    /(expir[ey]s?|valid\s+until|valid\s+to)[:\s]+(\d{1,2})[\/\-\s]+([A-Za-z]{3,9}|\d{1,2})[\/\-\s]+(\d{4})/i
   )
   let sia_expiry_date: string | null = null
   if (expiryMatch) {
-    const parts = expiryMatch[2].split(/[\/\-]/)
-    if (parts.length === 3) {
-      sia_expiry_date = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+    const [, , day, mon, year] = expiryMatch
+    const month = /^\d+$/.test(mon)
+      ? Number(mon)
+      : ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(mon.slice(0, 3).toLowerCase()) + 1
+    if (month >= 1 && month <= 12) {
+      sia_expiry_date = `${year}-${String(month).padStart(2, '0')}-${day.padStart(2, '0')}`
     }
   }
 
