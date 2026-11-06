@@ -84,7 +84,7 @@ export default function ShiftForm({ initialStart, initialEnd, sites, guards, shi
             const busy = busyGuardIds.has(g.id)
             return (
               <option key={g.id} value={g.id} disabled={busy}>
-                {busy ? '⚠ ' : ''}{g.first_name} {g.last_name} — £{g.hourly_rate}/hr{busy ? ' (already scheduled)' : ''}
+                {busy ? '⚠ ' : ''}{g.first_name} {g.last_name}{busy ? ' (already scheduled)' : ''}
               </option>
             )
           })}

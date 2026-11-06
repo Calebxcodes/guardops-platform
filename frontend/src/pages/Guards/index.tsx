@@ -205,9 +205,6 @@ export default function Guards() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Guard</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-                  {role !== 'scheduler' && (
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Rate</th>
-                  )}
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Skills</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Certs</th>
                   <th className="px-4 py-3 w-12"></th>
@@ -231,9 +228,6 @@ export default function Guards() {
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={guard.status} /></td>
                     <td className="px-4 py-3"><StatusBadge status={guard.employment_type} /></td>
-                    {role !== 'scheduler' && (
-                      <td className="px-4 py-3 font-medium">£{guard.hourly_rate}/hr</td>
-                    )}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {guard.skills?.slice(0, 2).map(s => (
@@ -283,7 +277,6 @@ export default function Guards() {
                 <div className="mt-3 flex flex-wrap gap-2 items-center">
                   <StatusBadge status={guard.status} />
                   <StatusBadge status={guard.employment_type} />
-                  <span className="text-xs font-medium text-gray-600">£{guard.hourly_rate}/hr</span>
                   {hasCertExpiringSoon(guard) && (
                     <span className="flex items-center gap-1 text-xs text-yellow-600">
                       <AlertTriangle size={12} /> Cert expiring
