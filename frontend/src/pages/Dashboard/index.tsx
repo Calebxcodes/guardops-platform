@@ -211,9 +211,9 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-sm sm:text-base flex items-center gap-2">
               <AlertCircle size={15} className="text-red-500 shrink-0" />
-              Uncovered Shifts
+              Sites Without a Guard
             </h2>
-            <span className="text-xs text-gray-400">Sites with no guards</span>
+            <span className="text-xs text-gray-400">No guard on duty there right now</span>
           </div>
           {uncoveredSites.length === 0 ? (
             <p className="text-green-600 text-sm py-4 text-center">All sites covered ✓</p>
