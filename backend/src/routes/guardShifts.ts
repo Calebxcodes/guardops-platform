@@ -224,7 +224,7 @@ router.post('/clock-out', async (req: AuthRequest, res: Response) => {
     VALUES ($1,$2,'clock_out',$3,$4,$5,$6,$7,0,$8,$9)
   `, [req.guardId, shift_id, lat, lng, accuracy, photo_url, notes, effectiveClockOut.toISOString(), clientReportedAt(req.body.clocked_at)])
 
-  await query("UPDATE shifts SET status = 'completed' WHERE id = $1", [shift_id])
+  await query("UPDATE shifts SET status = 'completed', actual_end_time = $2 WHERE id = $1", [shift_id, effectiveClockOut.toISOString()])
   await query("UPDATE guards SET status = 'off-duty' WHERE id = $1", [req.guardId])
 
   auditLog({
