@@ -9,7 +9,9 @@ const router = Router()
 const SHIFT_HOURS = `
   GREATEST(0,
     EXTRACT(EPOCH FROM (
-      CASE WHEN end_time < start_time THEN end_time + INTERVAL '1 day' ELSE end_time END
+      -- completed shifts count the hours actually worked, others the scheduled hours
+      CASE WHEN COALESCE(actual_end_time, end_time) < start_time
+        THEN COALESCE(actual_end_time, end_time) + INTERVAL '1 day' ELSE COALESCE(actual_end_time, end_time) END
       - start_time
     )) / 3600
   )
