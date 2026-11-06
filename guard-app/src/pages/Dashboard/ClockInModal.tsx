@@ -159,7 +159,7 @@ export default function ClockInModal({ shift, action, onClose, onSuccess }: Prop
                 </div>
                 <div className="flex items-center gap-2 text-white/50">
                   <ScanFace size={13} className={hasFaceId ? 'text-brand-400' : 'text-red-400'} />
-                  <span>Step 2 — Face ID verification</span>
+                  <span>Step 2 — Face match on this device (not server-verified)</span>
                   {!hasFaceId && <span className="text-red-400 text-xs ml-auto">Not enrolled</span>}
                 </div>
               </div>

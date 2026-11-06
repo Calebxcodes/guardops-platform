@@ -196,7 +196,7 @@ export default function FaceCapture({ mode, referenceDescriptor, onSuccess, onFa
         {status === 'scanning' && (
           <>
             <p className="text-brand-300 font-medium text-sm">
-              {mode === 'enroll' ? 'Look directly at the camera' : 'Verifying your identity…'}
+              {mode === 'enroll' ? 'Look directly at the camera' : 'Matching your face on this device…'}
             </p>
             <p className="text-white/30 text-xs mt-0.5">Centre your face in the oval</p>
           </>

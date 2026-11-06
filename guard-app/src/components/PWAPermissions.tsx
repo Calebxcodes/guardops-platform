@@ -187,7 +187,7 @@ export default function PWAPermissions() {
                 <PermRow
                   icon={<Camera size={16} className="text-brand-400" />}
                   label="Camera"
-                  desc="Face ID verification for clock-in"
+                  desc="On-device face match at clock-in"
                   status={status.camera}
                 />
               </div>

@@ -35,7 +35,7 @@ export default function PrivacyDialog({ onClose }: Props) {
 
           <Section icon={<ScanFace size={15} className="text-brand-400" />} title="Facial Biometric Data">
             <p>
-              Clock-in uses <strong className="text-white/80">facial recognition</strong> to confirm your identity. We store a mathematical descriptor of your face — not a photo. This data:
+              Clock-in uses <strong className="text-white/80">facial recognition</strong> on this device as a check at clock-in (Strondis does not yet verify it on the server). We store a mathematical descriptor of your face — not a photo. This data:
             </p>
             <ul className="mt-2 space-y-1 list-disc list-inside text-white/40">
               <li>Is used only for clock-in/out verification</li>
